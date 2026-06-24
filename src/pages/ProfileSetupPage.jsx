@@ -61,7 +61,7 @@ export default function ProfileSetupPage() {
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <div style={styles.logoSmall}>応援</div>
+        <div style={styles.logoSmall}>おーえん</div>
         <span style={styles.step}>プロフィール設定</span>
       </div>
 
@@ -222,6 +222,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     flex: 1,
+    minWidth: 120,
     border: "2px solid #e0e0e0",
     borderRadius: 10,
     overflow: "hidden",
