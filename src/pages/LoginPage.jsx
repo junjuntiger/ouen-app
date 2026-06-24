@@ -12,17 +12,23 @@ export default function LoginPage() {
   const verifierRef = useRef(null);
 
   useEffect(() => {
-    const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-      size: "invisible",
-      callback: () => {},
-      "expired-callback": () => {
-        setError("reCAPTCHAの有効期限が切れました。もう一度お試しください。");
-      },
-    });
-    verifierRef.current = verifier;
+    try {
+      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "invisible",
+        callback: () => {},
+        "expired-callback": () => {
+          setError("reCAPTCHAの有効期限が切れました。もう一度お試しください。");
+        },
+      });
+      verifierRef.current = verifier;
+    } catch (e) {
+      console.error("RecaptchaVerifier初期化エラー:", e);
+    }
     return () => {
-      try { verifier.clear(); } catch (_) {}
-      verifierRef.current = null;
+      if (verifierRef.current) {
+        try { verifierRef.current.clear(); } catch (_) {}
+        verifierRef.current = null;
+      }
     };
   }, []);
 
