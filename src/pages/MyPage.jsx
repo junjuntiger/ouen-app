@@ -3,7 +3,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   doc,
   updateDoc,
@@ -11,10 +10,12 @@ import {
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import BottomNav from "../components/BottomNav";
 
 export default function MyPage() {
   const { user, userProfile, setUserProfile } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("history"); // "history" | "edit"
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -30,13 +31,21 @@ export default function MyPage() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const q = query(
-          collection(db, "transactions"),
-          where("fromUserId", "==", user.uid),
-          orderBy("createdAt", "desc")
-        );
-        const snap = await getDocs(q);
-        setHistory(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const [sentSnap, recvSnap] = await Promise.all([
+          getDocs(query(collection(db, "transactions"), where("fromUserId", "==", user.uid))),
+          getDocs(query(collection(db, "transactions"), where("toUserId", "==", user.uid))),
+        ]);
+        const all = [
+          ...sentSnap.docs.map((d) => ({ id: d.id, ...d.data(), direction: "sent" })),
+          ...recvSnap.docs.map((d) => ({ id: d.id, ...d.data(), direction: "recv" })),
+        ];
+        const unique = Array.from(new Map(all.map((t) => [t.id, t])).values());
+        unique.sort((a, b) => {
+          const at = a.createdAt?.toDate?.() ?? new Date(0);
+          const bt = b.createdAt?.toDate?.() ?? new Date(0);
+          return bt - at;
+        });
+        setHistory(unique);
       } catch (e) {
         console.error(e);
       } finally {
@@ -129,7 +138,10 @@ export default function MyPage() {
                       <span style={styles.historyDate}>{formatDate(tx.createdAt)}</span>
                     </div>
                     <div style={styles.historyBottom}>
-                      <span style={styles.historyPaid}>¥{tx.paid?.toLocaleString()} 支払い</span>
+                      <span style={{ ...styles.historyLabel, color: tx.direction === "sent" ? "#e65100" : "#2E7D32" }}>
+                        {tx.direction === "sent" ? "支払い" : "受取"}
+                      </span>
+                      <span style={styles.historyPaid}>¥{tx.paid?.toLocaleString()}</span>
                       <span style={styles.historyOP}>+{tx.op?.toLocaleString()} OP</span>
                     </div>
                   </div>
@@ -190,6 +202,15 @@ export default function MyPage() {
             >
               {saving ? "保存中..." : "保存する"}
             </button>
+
+            {userProfile?.isAdmin && (
+              <button
+                onClick={() => navigate("/admin")}
+                style={styles.adminBtn}
+              >
+                管理画面へ
+              </button>
+            )}
 
             <button
               onClick={() => signOut(auth)}
@@ -406,6 +427,16 @@ const styles = {
     background: "#a5d6a7",
     cursor: "not-allowed",
   },
+  adminBtn: {
+    width: "100%",
+    padding: "14px",
+    background: "#E8F5E9",
+    color: "#2E7D32",
+    fontSize: 15,
+    fontWeight: "bold",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
   logoutBtn: {
     width: "100%",
     padding: "14px",
@@ -414,5 +445,9 @@ const styles = {
     fontSize: 15,
     fontWeight: "bold",
     borderRadius: 12,
+  },
+  historyLabel: {
+    fontSize: 12,
+    fontWeight: "bold",
   },
 };
