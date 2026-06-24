@@ -13,13 +13,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     try {
-      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+      const verifier = new RecaptchaVerifier("recaptcha-container", {
         size: "invisible",
         callback: () => {},
         "expired-callback": () => {
           setError("reCAPTCHAの有効期限が切れました。もう一度お試しください。");
         },
-      });
+      }, auth);
       verifierRef.current = verifier;
     } catch (e) {
       console.error("RecaptchaVerifier初期化エラー:", e);
