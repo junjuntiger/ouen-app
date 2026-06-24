@@ -20,8 +20,7 @@ export default function OuenPage() {
   const [members, setMembers] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
-  const [selectedMenu, setSelectedMenu] = useState(null);
-  const [quantity, setQuantity] = useState(1);
+  const [cartItems, setCartItems] = useState([]);
   const [paid, setPaid] = useState("");
   const [message, setMessage] = useState("");
   const [customMenuName, setCustomMenuName] = useState("");
@@ -48,23 +47,46 @@ export default function OuenPage() {
       m.area?.includes(search)
   );
 
-  const totalPrice = selectedMenu ? selectedMenu.price * quantity : 0;
+  const cartTotal = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const paidNum = Number(paid);
-  const op = paidNum > totalPrice ? paidNum - totalPrice : 0;
+  const op = paidNum > cartTotal ? paidNum - cartTotal : 0;
+
+  const changeQty = (name, price, delta) => {
+    setCartItems((prev) => {
+      const existing = prev.find((i) => i.name === name);
+      if (!existing) {
+        return delta > 0 ? [...prev, { name, price, quantity: 1 }] : prev;
+      }
+      const newQty = existing.quantity + delta;
+      if (newQty <= 0) return prev.filter((i) => i.name !== name);
+      return prev.map((i) => i.name === name ? { ...i, quantity: newQty } : i);
+    });
+  };
+
+  const addCustomItem = () => {
+    if (!customMenuName || !customMenuPrice) return;
+    changeQty(customMenuName, Number(customMenuPrice), 1);
+    setCustomMenuName("");
+    setCustomMenuPrice("");
+  };
 
   const handleSubmit = async () => {
     setError("");
-    if (paidNum < totalPrice) {
+    if (paidNum < cartTotal) {
       setError("支払い金額は定価以上を入力してください");
       return;
     }
     setLoading(true);
+    const menuNameSummary = cartItems.length === 1
+      ? `${cartItems[0].name}${cartItems[0].quantity > 1 ? ` × ${cartItems[0].quantity}` : ""}`
+      : cartItems.map((i) => `${i.name}${i.quantity > 1 ? ` × ${i.quantity}` : ""}`).join("、");
     try {
       await addDoc(collection(db, "transactions"), {
         fromUserId: user.uid,
         toUserId: selectedMember.id,
-        menuName: selectedMenu.name,
-        price: totalPrice,
+        menuName: menuNameSummary,
+        items: cartItems,
+        price: cartTotal,
         paid: paidNum,
         op,
         message: message.trim() || null,
@@ -86,8 +108,7 @@ export default function OuenPage() {
   const reset = () => {
     setStep(0);
     setSelectedMember(null);
-    setSelectedMenu(null);
-    setQuantity(1);
+    setCartItems([]);
     setPaid("");
     setDone(false);
     setError("");
@@ -172,20 +193,26 @@ export default function OuenPage() {
                 <p style={styles.memberSub}>{selectedMember.job}</p>
               </div>
             </div>
-            <h3 style={styles.sectionTitle}>定価メニューを選ぶ</h3>
+            <h3 style={styles.sectionTitle}>メニューを選ぶ（複数可）</h3>
             {(!selectedMember.menus || selectedMember.menus.length === 0) ? (
               <div style={styles.empty}>メニューが登録されていません</div>
             ) : (
-              selectedMember.menus.map((menu, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setSelectedMenu(menu); setStep(2); }}
-                  style={styles.menuCard}
-                >
-                  <span style={styles.menuName}>{menu.name}</span>
-                  <span style={styles.menuPrice}>¥{menu.price.toLocaleString()}</span>
-                </button>
-              ))
+              selectedMember.menus.map((menu, i) => {
+                const qty = cartItems.find((c) => c.name === menu.name)?.quantity ?? 0;
+                return (
+                  <div key={i} style={{ ...styles.menuCard, ...(qty > 0 ? styles.menuCardSelected : {}) }}>
+                    <div style={styles.menuCardLeft}>
+                      <span style={styles.menuName}>{menu.name}</span>
+                      <span style={styles.menuPrice}>¥{menu.price.toLocaleString()}</span>
+                    </div>
+                    <div style={styles.qtyRow}>
+                      <button onClick={() => changeQty(menu.name, menu.price, -1)} style={styles.qBtn}>−</button>
+                      <span style={styles.qValue}>{qty}</span>
+                      <button onClick={() => changeQty(menu.name, menu.price, 1)} style={styles.qBtn}>＋</button>
+                    </div>
+                  </div>
+                );
+              })
             )}
 
             <div style={styles.customMenuCard}>
@@ -208,44 +235,51 @@ export default function OuenPage() {
                     min={0}
                   />
                 </div>
+                <button
+                  onClick={addCustomItem}
+                  disabled={!customMenuName || !customMenuPrice}
+                  style={{ ...styles.customAddBtn, ...(!customMenuName || !customMenuPrice ? styles.btnDisabled : {}) }}
+                >
+                  追加
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  if (!customMenuName || !customMenuPrice) return;
-                  setSelectedMenu({ name: customMenuName, price: Number(customMenuPrice) });
-                  setStep(2);
-                }}
-                disabled={!customMenuName || !customMenuPrice}
-                style={{
-                  ...styles.customMenuBtn,
-                  ...(!customMenuName || !customMenuPrice ? styles.btnDisabled : {}),
-                }}
-              >
-                これで進む
-              </button>
             </div>
 
+            {cartTotal > 0 && (
+              <div style={styles.cartSummary}>
+                <span style={styles.cartSummaryLabel}>合計定価</span>
+                <span style={styles.cartSummaryValue}>¥{cartTotal.toLocaleString()}</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => { setPaid(""); setStep(2); }}
+              disabled={cartItems.length === 0}
+              style={{ ...styles.nextBtn, ...(cartItems.length === 0 ? styles.btnDisabled : {}), marginTop: 8 }}
+            >
+              次へ進む
+            </button>
             <button onClick={() => setStep(0)} style={styles.backBtn}>← 戻る</button>
           </div>
         )}
 
-        {step === 2 && selectedMenu && (
+        {step === 2 && cartItems.length > 0 && (
           <div>
             <div style={styles.menuSummary}>
               <p style={styles.menuSummaryLabel}>選択中のメニュー</p>
-              <p style={styles.menuSummaryName}>{selectedMenu.name}</p>
-              <p style={styles.menuSummaryPrice}>定価 ¥{selectedMenu.price.toLocaleString()} / 個</p>
+              {cartItems.map((item, i) => (
+                <div key={i} style={styles.cartItemRow}>
+                  <span style={styles.cartItemName}>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ""}</span>
+                  <span style={styles.cartItemPrice}>¥{(item.price * item.quantity).toLocaleString()}</span>
+                </div>
+              ))}
+              <div style={styles.cartItemTotal}>
+                <span>合計定価</span>
+                <strong>¥{cartTotal.toLocaleString()}</strong>
+              </div>
             </div>
 
             <div style={styles.formSection}>
-              <label style={styles.label}>数量</label>
-              <div style={styles.quantityRow}>
-                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={styles.qBtn}>−</button>
-                <span style={styles.qValue}>{quantity}</span>
-                <button onClick={() => setQuantity(quantity + 1)} style={styles.qBtn}>＋</button>
-              </div>
-              <p style={styles.totalLabel}>合計定価：<strong>¥{totalPrice.toLocaleString()}</strong></p>
-
               <label style={styles.label}>支払い金額</label>
               <div style={styles.paidRow}>
                 <span style={styles.yen}>¥</span>
@@ -253,9 +287,9 @@ export default function OuenPage() {
                   type="number"
                   value={paid}
                   onChange={(e) => setPaid(e.target.value)}
-                  placeholder={totalPrice}
+                  placeholder={cartTotal}
                   style={styles.paidInput}
-                  min={totalPrice}
+                  min={cartTotal}
                 />
               </div>
 
@@ -268,7 +302,7 @@ export default function OuenPage() {
                     </>
                   ) : (
                     <span style={styles.opPreviewLabel}>
-                      {paidNum < totalPrice ? "定価以上を入力してください" : "定価と同額（OP=0）"}
+                      {paidNum < cartTotal ? "定価以上を入力してください" : "定価と同額（OP=0）"}
                     </span>
                   )}
                 </div>
@@ -287,8 +321,8 @@ export default function OuenPage() {
             {error && <p style={styles.error}>{error}</p>}
             <button
               onClick={() => { if (!error) setStep(3); }}
-              disabled={!paid || paidNum < totalPrice}
-              style={{ ...styles.nextBtn, ...(!paid || paidNum < totalPrice ? styles.btnDisabled : {}) }}
+              disabled={!paid || paidNum < cartTotal}
+              style={{ ...styles.nextBtn, ...(!paid || paidNum < cartTotal ? styles.btnDisabled : {}) }}
             >
               確認へ進む
             </button>
@@ -301,9 +335,10 @@ export default function OuenPage() {
             <h3 style={styles.sectionTitle}>内容を確認</h3>
             <div style={styles.confirmCard}>
               <Row label="おーえん先" value={selectedMember?.name} />
-              <Row label="商品" value={selectedMenu?.name} />
-              <Row label="数量" value={`${quantity}個`} />
-              <Row label="定価合計" value={`¥${totalPrice.toLocaleString()}`} />
+              {cartItems.map((item, i) => (
+                <Row key={i} label={item.quantity > 1 ? `${item.name} × ${item.quantity}` : item.name} value={`¥${(item.price * item.quantity).toLocaleString()}`} />
+              ))}
+              <Row label="定価合計" value={`¥${cartTotal.toLocaleString()}`} />
               <Row label="支払い金額" value={<strong style={{ fontSize: 20 }}>¥{paidNum.toLocaleString()}</strong>} />
               {message.trim() && <Row label="メッセージ" value={message.trim()} />}
               <div style={styles.divider} />
@@ -466,17 +501,55 @@ const styles = {
     alignItems: "center",
     background: "#fff",
     borderRadius: 12,
-    padding: "16px",
+    padding: "14px 16px",
     boxShadow: "var(--shadow)",
     width: "100%",
     marginBottom: 8,
+    border: "2px solid transparent",
+  },
+  menuCardSelected: {
+    border: "2px solid var(--green-primary)",
+    background: "#f1f8e9",
+  },
+  menuCardLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    flex: 1,
   },
   menuName: {
     fontSize: 15,
     fontWeight: "bold",
+    textAlign: "left",
   },
   menuPrice: {
-    fontSize: 16,
+    fontSize: 13,
+    color: "var(--green-primary)",
+    textAlign: "left",
+  },
+  qtyRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
+  },
+  cartSummary: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    background: "var(--green-pale)",
+    borderRadius: 10,
+    padding: "12px 16px",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  cartSummaryLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "var(--text-main)",
+  },
+  cartSummaryValue: {
+    fontSize: 18,
     fontWeight: "bold",
     color: "var(--green-primary)",
   },
@@ -486,21 +559,34 @@ const styles = {
     padding: "16px",
     marginBottom: 16,
     boxShadow: "var(--shadow)",
-    textAlign: "center",
   },
   menuSummaryLabel: {
     fontSize: 12,
     color: "var(--text-sub)",
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  menuSummaryName: {
-    fontSize: 18,
+  cartItemRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    paddingBottom: 6,
+    marginBottom: 6,
+    borderBottom: "1px solid #f0f0f0",
+  },
+  cartItemName: {
+    fontSize: 14,
+    color: "var(--text-main)",
+  },
+  cartItemPrice: {
+    fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 4,
+    color: "var(--text-main)",
   },
-  menuSummaryPrice: {
+  cartItemTotal: {
+    display: "flex",
+    justifyContent: "space-between",
     fontSize: 14,
     color: "var(--text-sub)",
+    paddingTop: 4,
   },
   formSection: {
     background: "#fff",
@@ -613,14 +699,14 @@ const styles = {
     textAlign: "right",
     minWidth: 0,
   },
-  customMenuBtn: {
-    width: "100%",
-    padding: "12px",
+  customAddBtn: {
+    padding: "10px 14px",
     background: "var(--green-primary)",
     color: "#fff",
     fontSize: 14,
     fontWeight: "bold",
     borderRadius: 10,
+    flexShrink: 0,
   },
   messageInput: {
     width: "100%",
