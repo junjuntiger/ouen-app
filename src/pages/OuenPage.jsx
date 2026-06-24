@@ -12,7 +12,7 @@ import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
 import BottomNav from "../components/BottomNav";
 
-const STEPS = ["メンバー選択", "メニュー選択", "金額入力", "確認"];
+const STEPS = ["メンバー選択", "メニュー・金額", "確認"];
 
 export default function OuenPage() {
   const { user, userProfile } = useAuth();
@@ -21,7 +21,6 @@ export default function OuenPage() {
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
   const [cartItems, setCartItems] = useState([]);
-  const [paid, setPaid] = useState("");
   const [message, setMessage] = useState("");
   const [customMenuName, setCustomMenuName] = useState("");
   const [customMenuPrice, setCustomMenuPrice] = useState("");
@@ -48,19 +47,23 @@ export default function OuenPage() {
   );
 
   const cartTotal = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const paidNum = Number(paid);
-  const op = paidNum > cartTotal ? paidNum - cartTotal : 0;
+  const totalPaid = cartItems.reduce((sum, i) => sum + (Number(i.paid) || 0), 0);
+  const op = totalPaid > cartTotal ? totalPaid - cartTotal : 0;
 
   const changeQty = (name, price, delta) => {
     setCartItems((prev) => {
       const existing = prev.find((i) => i.name === name);
       if (!existing) {
-        return delta > 0 ? [...prev, { name, price, quantity: 1 }] : prev;
+        return delta > 0 ? [...prev, { name, price, quantity: 1, paid: "" }] : prev;
       }
       const newQty = existing.quantity + delta;
       if (newQty <= 0) return prev.filter((i) => i.name !== name);
       return prev.map((i) => i.name === name ? { ...i, quantity: newQty } : i);
     });
+  };
+
+  const setItemPaid = (name, value) => {
+    setCartItems((prev) => prev.map((i) => i.name === name ? { ...i, paid: value } : i));
   };
 
   const addCustomItem = () => {
@@ -72,7 +75,7 @@ export default function OuenPage() {
 
   const handleSubmit = async () => {
     setError("");
-    if (paidNum < cartTotal) {
+    if (totalPaid < cartTotal) {
       setError("支払い金額は定価以上を入力してください");
       return;
     }
@@ -87,7 +90,7 @@ export default function OuenPage() {
         menuName: menuNameSummary,
         items: cartItems,
         price: cartTotal,
-        paid: paidNum,
+        paid: totalPaid,
         op,
         message: message.trim() || null,
         createdAt: serverTimestamp(),
@@ -109,7 +112,6 @@ export default function OuenPage() {
     setStep(0);
     setSelectedMember(null);
     setCartItems([]);
-    setPaid("");
     setDone(false);
     setError("");
     setSearch("");
@@ -193,23 +195,42 @@ export default function OuenPage() {
                 <p style={styles.memberSub}>{selectedMember.job}</p>
               </div>
             </div>
-            <h3 style={styles.sectionTitle}>メニューを選ぶ（複数可）</h3>
+            <h3 style={styles.sectionTitle}>メニューと金額を入力</h3>
             {(!selectedMember.menus || selectedMember.menus.length === 0) ? (
               <div style={styles.empty}>メニューが登録されていません</div>
             ) : (
               selectedMember.menus.map((menu, i) => {
-                const qty = cartItems.find((c) => c.name === menu.name)?.quantity ?? 0;
+                const cartItem = cartItems.find((c) => c.name === menu.name);
+                const qty = cartItem?.quantity ?? 0;
                 return (
                   <div key={i} style={{ ...styles.menuCard, ...(qty > 0 ? styles.menuCardSelected : {}) }}>
-                    <div style={styles.menuCardLeft}>
+                    <div style={styles.menuCardTop}>
                       <span style={styles.menuName}>{menu.name}</span>
-                      <span style={styles.menuPrice}>¥{menu.price.toLocaleString()}</span>
+                      <span style={styles.menuPrice}>定価 ¥{menu.price.toLocaleString()}</span>
                     </div>
-                    <div style={styles.qtyRow}>
-                      <button onClick={() => changeQty(menu.name, menu.price, -1)} style={styles.qBtn}>−</button>
-                      <span style={styles.qValue}>{qty}</span>
-                      <button onClick={() => changeQty(menu.name, menu.price, 1)} style={styles.qBtn}>＋</button>
-                    </div>
+                    {qty > 0 && (
+                      <div style={styles.menuCardBottom}>
+                        <div style={styles.qtyRow}>
+                          <button onClick={() => changeQty(menu.name, menu.price, -1)} style={styles.qBtn}>−</button>
+                          <span style={styles.qValue}>{qty}</span>
+                          <button onClick={() => changeQty(menu.name, menu.price, 1)} style={styles.qBtn}>＋</button>
+                        </div>
+                        <div style={styles.rowPaidWrap}>
+                          <span style={styles.yen}>¥</span>
+                          <input
+                            type="number"
+                            value={cartItem?.paid ?? ""}
+                            onChange={(e) => setItemPaid(menu.name, e.target.value)}
+                            placeholder={menu.price * qty}
+                            style={styles.rowPaidInput}
+                            min={menu.price * qty}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {qty === 0 && (
+                      <button onClick={() => changeQty(menu.name, menu.price, 1)} style={styles.addItemBtn}>＋ 追加</button>
+                    )}
                   </div>
                 );
               })
@@ -245,101 +266,68 @@ export default function OuenPage() {
               </div>
             </div>
 
-            {cartTotal > 0 && (
-              <div style={styles.cartSummary}>
-                <span style={styles.cartSummaryLabel}>合計定価</span>
-                <span style={styles.cartSummaryValue}>¥{cartTotal.toLocaleString()}</span>
+            {cartItems.length > 0 && (
+              <div style={styles.formSection}>
+                <label style={styles.label}>メッセージ（任意）</label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="ひとことメッセージを添えよう"
+                  style={styles.messageInput}
+                  rows={3}
+                />
               </div>
             )}
 
+            {cartTotal > 0 && (
+              <div style={styles.cartSummary}>
+                <div>
+                  <div style={styles.cartSummaryRow}>
+                    <span style={styles.cartSummaryLabel}>定価合計</span>
+                    <span style={styles.cartSummaryValue}>¥{cartTotal.toLocaleString()}</span>
+                  </div>
+                  <div style={styles.cartSummaryRow}>
+                    <span style={styles.cartSummaryLabel}>支払い合計</span>
+                    <span style={{ ...styles.cartSummaryValue, color: totalPaid >= cartTotal ? "var(--green-primary)" : "#e65100" }}>
+                      ¥{totalPaid.toLocaleString()}
+                    </span>
+                  </div>
+                  {totalPaid > cartTotal && (
+                    <div style={styles.cartSummaryRow}>
+                      <span style={styles.cartSummaryLabel}>獲得OP</span>
+                      <span style={{ ...styles.cartSummaryValue, color: "var(--green-primary)" }}>+{op.toLocaleString()} OP</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {error && <p style={styles.error}>{error}</p>}
             <button
-              onClick={() => { setPaid(""); setStep(2); }}
-              disabled={cartItems.length === 0}
-              style={{ ...styles.nextBtn, ...(cartItems.length === 0 ? styles.btnDisabled : {}), marginTop: 8 }}
+              onClick={() => setStep(2)}
+              disabled={cartItems.length === 0 || totalPaid < cartTotal || cartItems.some((i) => !i.paid)}
+              style={{ ...styles.nextBtn, ...(cartItems.length === 0 || totalPaid < cartTotal || cartItems.some((i) => !i.paid) ? styles.btnDisabled : {}), marginTop: 8 }}
             >
-              次へ進む
+              確認へ進む
             </button>
             <button onClick={() => setStep(0)} style={styles.backBtn}>← 戻る</button>
           </div>
         )}
 
-        {step === 2 && cartItems.length > 0 && (
-          <div>
-            <div style={styles.menuSummary}>
-              <p style={styles.menuSummaryLabel}>選択中のメニュー</p>
-              {cartItems.map((item, i) => (
-                <div key={i} style={styles.cartItemRow}>
-                  <span style={styles.cartItemName}>{item.name}{item.quantity > 1 ? ` × ${item.quantity}` : ""}</span>
-                  <span style={styles.cartItemPrice}>¥{(item.price * item.quantity).toLocaleString()}</span>
-                </div>
-              ))}
-              <div style={styles.cartItemTotal}>
-                <span>合計定価</span>
-                <strong>¥{cartTotal.toLocaleString()}</strong>
-              </div>
-            </div>
-
-            <div style={styles.formSection}>
-              <label style={styles.label}>支払い金額</label>
-              <div style={styles.paidRow}>
-                <span style={styles.yen}>¥</span>
-                <input
-                  type="number"
-                  value={paid}
-                  onChange={(e) => setPaid(e.target.value)}
-                  placeholder={cartTotal}
-                  style={styles.paidInput}
-                  min={cartTotal}
-                />
-              </div>
-
-              {paid && (
-                <div style={{ ...styles.opPreview, ...(op > 0 ? styles.opPositive : styles.opZero) }}>
-                  {op > 0 ? (
-                    <>
-                      <span style={styles.opPreviewLabel}>獲得OP</span>
-                      <span style={styles.opPreviewValue}>+{op.toLocaleString()} OP</span>
-                    </>
-                  ) : (
-                    <span style={styles.opPreviewLabel}>
-                      {paidNum < cartTotal ? "定価以上を入力してください" : "定価と同額（OP=0）"}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <label style={{ ...styles.label, marginTop: 16 }}>メッセージ（任意）</label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="ひとことメッセージを添えよう"
-                style={styles.messageInput}
-                rows={3}
-              />
-            </div>
-
-            {error && <p style={styles.error}>{error}</p>}
-            <button
-              onClick={() => { if (!error) setStep(3); }}
-              disabled={!paid || paidNum < cartTotal}
-              style={{ ...styles.nextBtn, ...(!paid || paidNum < cartTotal ? styles.btnDisabled : {}) }}
-            >
-              確認へ進む
-            </button>
-            <button onClick={() => setStep(1)} style={styles.backBtn}>← 戻る</button>
-          </div>
-        )}
-
-        {step === 3 && (
+        {step === 2 && (
           <div>
             <h3 style={styles.sectionTitle}>内容を確認</h3>
             <div style={styles.confirmCard}>
               <Row label="おーえん先" value={selectedMember?.name} />
               {cartItems.map((item, i) => (
-                <Row key={i} label={item.quantity > 1 ? `${item.name} × ${item.quantity}` : item.name} value={`¥${(item.price * item.quantity).toLocaleString()}`} />
+                <Row
+                  key={i}
+                  label={item.quantity > 1 ? `${item.name} × ${item.quantity}` : item.name}
+                  value={<span>定価 ¥{(item.price * item.quantity).toLocaleString()} → <strong>¥{Number(item.paid).toLocaleString()}</strong></span>}
+                />
               ))}
               <Row label="定価合計" value={`¥${cartTotal.toLocaleString()}`} />
-              <Row label="支払い金額" value={<strong style={{ fontSize: 20 }}>¥{paidNum.toLocaleString()}</strong>} />
+              <Row label="支払い合計" value={<strong style={{ fontSize: 20 }}>¥{totalPaid.toLocaleString()}</strong>} />
               {message.trim() && <Row label="メッセージ" value={message.trim()} />}
               <div style={styles.divider} />
               <Row
@@ -356,7 +344,7 @@ export default function OuenPage() {
             >
               {loading ? "処理中..." : "おーえんする！"}
             </button>
-            <button onClick={() => setStep(2)} style={styles.backBtn}>← 戻る</button>
+            <button onClick={() => setStep(1)} style={styles.backBtn}>← 戻る</button>
           </div>
         )}
       </div>
@@ -496,9 +484,6 @@ const styles = {
     marginBottom: 12,
   },
   menuCard: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
     background: "#fff",
     borderRadius: 12,
     padding: "14px 16px",
@@ -510,6 +495,19 @@ const styles = {
   menuCardSelected: {
     border: "2px solid var(--green-primary)",
     background: "#f1f8e9",
+  },
+  menuCardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  menuCardBottom: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 8,
   },
   menuCardLeft: {
     display: "flex",
@@ -524,8 +522,36 @@ const styles = {
   },
   menuPrice: {
     fontSize: 13,
+    color: "var(--text-sub)",
+    textAlign: "right",
+  },
+  addItemBtn: {
+    marginTop: 6,
+    padding: "6px 14px",
+    background: "var(--green-pale)",
     color: "var(--green-primary)",
-    textAlign: "left",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  rowPaidWrap: {
+    display: "flex",
+    alignItems: "center",
+    border: "2px solid #a5d6a7",
+    borderRadius: 8,
+    overflow: "hidden",
+    flex: 1,
+  },
+  rowPaidInput: {
+    flex: 1,
+    padding: "8px 10px",
+    fontSize: 16,
+    fontWeight: "bold",
+    border: "none",
+    background: "transparent",
+    textAlign: "right",
+    minWidth: 0,
+    color: "var(--green-primary)",
   },
   qtyRow: {
     display: "flex",
@@ -534,14 +560,17 @@ const styles = {
     flexShrink: 0,
   },
   cartSummary: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
     background: "var(--green-pale)",
     borderRadius: 10,
     padding: "12px 16px",
     marginTop: 8,
     marginBottom: 8,
+  },
+  cartSummaryRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
   },
   cartSummaryLabel: {
     fontSize: 14,
@@ -549,7 +578,7 @@ const styles = {
     color: "var(--text-main)",
   },
   cartSummaryValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     color: "var(--green-primary)",
   },
