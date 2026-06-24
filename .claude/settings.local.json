@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"c:\\\\Users\\\\kanri\\\\Desktop\\\\ouen-app\"; npm install; echo \"EXIT:$LASTEXITCODE\")",
+      "PowerShell(cd \"c:\\\\Users\\\\kanri\\\\Desktop\\\\ouen-app\"; npm install firebase react-router-dom; echo \"EXIT:$LASTEXITCODE\")",
+      "PowerShell(cd \"c:\\\\Users\\\\kanri\\\\Desktop\\\\ouen-app\"; npm run build 2>&1; echo \"EXIT:$LASTEXITCODE\")"
+    ]
+  }
+}

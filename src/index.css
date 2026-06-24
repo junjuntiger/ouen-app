@@ -1,0 +1,53 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --green-primary: #2E7D32;
+  --green-light: #4CAF50;
+  --green-pale: #E8F5E9;
+  --green-dark: #1B5E20;
+  --accent-gold: #F9A825;
+  --text-main: #212121;
+  --text-sub: #757575;
+  --bg: #FAFAF7;
+  --white: #ffffff;
+  --border: #e0e0e0;
+  --radius: 12px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+body {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text-main);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--white);
+  position: relative;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+input {
+  font-family: inherit;
+  outline: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
