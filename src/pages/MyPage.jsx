@@ -188,10 +188,9 @@ export default function MyPage() {
                         <span style={styles.historyDate}>{formatDate(tx.createdAt)}</span>
                       </div>
                       <div style={styles.historyCounterpart}>
-                        <span style={styles.historyCounterpartLabel}>
-                          {tx.direction === "sent" ? "誰に" : "誰から"}
+                        <span style={styles.historyCounterpartName}>
+                          {counterpartName}{tx.direction === "sent" ? "へ" : "から"}
                         </span>
-                        <span style={styles.historyCounterpartName}>{counterpartName}さん</span>
                       </div>
                       <div style={styles.historyBottom}>
                         <span style={{ ...styles.historyLabel, color: tx.direction === "sent" ? "#e65100" : "#2E7D32" }}>

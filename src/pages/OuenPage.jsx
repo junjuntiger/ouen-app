@@ -70,7 +70,7 @@ export default function OuenPage() {
       });
 
       if (op > 0) {
-        await updateDoc(doc(db, "users", user.uid), { op: increment(op) });
+        await updateDoc(doc(db, "users", selectedMember.id), { op: increment(op) });
       }
 
       setDone(true);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, orderBy, query, doc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editingOpId, setEditingOpId] = useState(null);
+  const [editingOpValue, setEditingOpValue] = useState("");
 
   useEffect(() => {
     if (!userProfile?.isAdmin) {
@@ -42,6 +44,19 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startEditOp = (u) => {
+    setEditingOpId(u.id);
+    setEditingOpValue(String(u.op || 0));
+  };
+
+  const saveOp = async (userId) => {
+    const newOp = Number(editingOpValue);
+    if (isNaN(newOp)) return;
+    await updateDoc(doc(db, "users", userId), { op: newOp });
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, op: newOp } : u));
+    setEditingOpId(null);
   };
 
   const formatDate = (ts) => {
@@ -117,7 +132,25 @@ export default function AdminPage() {
                       <td style={styles.td}>{u.name}</td>
                       <td style={styles.td}>{u.job || "-"}</td>
                       <td style={styles.td}>{u.area || "-"}</td>
-                      <td style={{ ...styles.td, textAlign: "right" }}>{(u.op || 0).toLocaleString()}</td>
+                      <td style={{ ...styles.td, textAlign: "right" }}>
+                        {editingOpId === u.id ? (
+                          <div style={styles.opEditRow}>
+                            <input
+                              type="number"
+                              value={editingOpValue}
+                              onChange={(e) => setEditingOpValue(e.target.value)}
+                              style={styles.opInput}
+                              autoFocus
+                            />
+                            <button onClick={() => saveOp(u.id)} style={styles.opSaveBtn}>✓</button>
+                            <button onClick={() => setEditingOpId(null)} style={styles.opCancelBtn}>✕</button>
+                          </div>
+                        ) : (
+                          <span onClick={() => startEditOp(u)} style={styles.opClickable}>
+                            {(u.op || 0).toLocaleString()} ✏️
+                          </span>
+                        )}
+                      </td>
                       <td style={styles.td}>{formatDate(u.createdAt)}</td>
                     </tr>
                   ))}
@@ -264,5 +297,40 @@ const styles = {
     padding: "12px 14px",
     color: "#424242",
     whiteSpace: "nowrap",
+  },
+  opClickable: {
+    cursor: "pointer",
+    padding: "4px 8px",
+    borderRadius: 6,
+    display: "inline-block",
+  },
+  opEditRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    justifyContent: "flex-end",
+  },
+  opInput: {
+    width: 90,
+    padding: "4px 8px",
+    border: "2px solid #2E7D32",
+    borderRadius: 6,
+    fontSize: 13,
+    textAlign: "right",
+  },
+  opSaveBtn: {
+    padding: "4px 8px",
+    background: "#2E7D32",
+    color: "#fff",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  opCancelBtn: {
+    padding: "4px 8px",
+    background: "#e0e0e0",
+    color: "#424242",
+    borderRadius: 6,
+    fontSize: 13,
   },
 };
