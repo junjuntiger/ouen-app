@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import OuenPage from "./pages/OuenPage";
 import MyPage from "./pages/MyPage";
 import MembersPage from "./pages/MembersPage";
+import AdminPage from "./pages/AdminPage";
 import "./index.css";
 
 function PrivateRoute({ children }) {
@@ -32,6 +33,7 @@ function AppRoutes() {
       <Route path="/ouen" element={<PrivateRoute><OuenPage /></PrivateRoute>} />
       <Route path="/mypage" element={<PrivateRoute><MyPage /></PrivateRoute>} />
       <Route path="/members" element={<PrivateRoute><MembersPage /></PrivateRoute>} />
+      <Route path="/admin" element={<PrivateRoute><AdminPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
