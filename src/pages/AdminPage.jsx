@@ -170,6 +170,7 @@ export default function AdminPage() {
                     <th style={styles.th}>金額</th>
                     <th style={styles.th}>OP</th>
                     <th style={styles.th}>日時</th>
+                    <th style={styles.th}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -181,6 +182,18 @@ export default function AdminPage() {
                       <td style={{ ...styles.td, textAlign: "right" }}>¥{(tx.paid || 0).toLocaleString()}</td>
                       <td style={{ ...styles.td, textAlign: "right" }}>{(tx.op || 0).toLocaleString()}</td>
                       <td style={styles.td}>{formatDate(tx.createdAt)}</td>
+                      <td style={styles.td}>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("この取引を削除しますか？")) return;
+                            await deleteDoc(doc(db, "transactions", tx.id));
+                            setTransactions((prev) => prev.filter((t) => t.id !== tx.id));
+                          }}
+                          style={styles.deleteBtn}
+                        >
+                          削除
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -332,5 +345,13 @@ const styles = {
     color: "#424242",
     borderRadius: 6,
     fontSize: 13,
+  },
+  deleteBtn: {
+    padding: "4px 10px",
+    background: "#ffebee",
+    color: "#c62828",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: "bold",
   },
 };
