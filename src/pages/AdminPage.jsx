@@ -58,8 +58,8 @@ export default function AdminPage() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <button onClick={() => navigate("/")} style={styles.backBtn}>🏠</button>
         <h1 style={styles.title}>管理画面</h1>
+        <button onClick={() => navigate("/")} style={styles.backBtn}>🏠</button>
       </div>
 
       <div style={styles.tabs}>
@@ -174,9 +174,9 @@ const styles = {
   },
   backBtn: {
     background: "transparent",
-    color: "#fff",
-    fontSize: 14,
-    padding: "4px 0",
+    fontSize: 28,
+    padding: "4px",
+    lineHeight: 1,
   },
   title: {
     fontSize: 20,
