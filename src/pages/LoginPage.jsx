@@ -32,7 +32,7 @@ export default function LoginPage() {
     try {
       // 毎回クリーンな verifier を作成（StrictMode対策）
       clearRecaptcha();
-      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+      const verifier = new RecaptchaVerifier(auth, document.getElementById("recaptcha-container"), {
         size: "invisible",
         callback: () => {},
         "expired-callback": () => {
