@@ -1,25 +1,30 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { auth } from "../firebase/config";
 
 export default function LoginPage() {
-  const [step, setStep] = useState("phone"); // "phone" | "code"
+  const [step, setStep] = useState("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const confirmationRef = useRef(null);
-  const recaptchaRef = useRef(null);
+  const verifierRef = useRef(null);
 
-  const clearRecaptcha = () => {
-    if (recaptchaRef.current) {
-      try { recaptchaRef.current.clear(); } catch (_) {}
-      recaptchaRef.current = null;
-    }
-    // widgetが残っていたらDOMをリセット
-    const container = document.getElementById("recaptcha-container");
-    if (container) container.innerHTML = "";
-  };
+  useEffect(() => {
+    const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+      size: "invisible",
+      callback: () => {},
+      "expired-callback": () => {
+        setError("reCAPTCHAの有効期限が切れました。もう一度お試しください。");
+      },
+    });
+    verifierRef.current = verifier;
+    return () => {
+      try { verifier.clear(); } catch (_) {}
+      verifierRef.current = null;
+    };
+  }, []);
 
   const handleSendCode = async () => {
     setError("");
@@ -30,24 +35,11 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      // 毎回クリーンな verifier を作成（StrictMode対策）
-      clearRecaptcha();
-      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-        callback: () => {},
-        "expired-callback": () => {
-          setError("reCAPTCHAの有効期限が切れました。もう一度お試しください。");
-        },
-      });
-      recaptchaRef.current = verifier;
-      await verifier.render();
-
-      const confirmation = await signInWithPhoneNumber(auth, fullPhone, verifier);
+      const confirmation = await signInWithPhoneNumber(auth, fullPhone, verifierRef.current);
       confirmationRef.current = confirmation;
       setStep("code");
     } catch (e) {
       console.error("SMS送信エラー:", e.code, e.message);
-      clearRecaptcha();
       if (e.code === "auth/invalid-phone-number") {
         setError("電話番号の形式が正しくありません");
       } else if (e.code === "auth/too-many-requests") {
