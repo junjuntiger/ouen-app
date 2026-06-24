@@ -192,6 +192,9 @@ export default function MyPage() {
                           {counterpartName}{tx.direction === "sent" ? "へ" : "から"}
                         </span>
                       </div>
+                      {tx.message && (
+                        <p style={styles.historyMessage}>「{tx.message}」</p>
+                      )}
                       <div style={styles.historyBottom}>
                         <span style={{ ...styles.historyLabel, color: tx.direction === "sent" ? "#e65100" : "#2E7D32" }}>
                           {tx.direction === "sent" ? "支払い" : "受取"}
@@ -432,6 +435,12 @@ const styles = {
     fontSize: 13,
     color: "var(--text-main)",
     fontWeight: "bold",
+  },
+  historyMessage: {
+    fontSize: 13,
+    color: "var(--text-sub)",
+    fontStyle: "italic",
+    marginBottom: 6,
   },
   historyBottom: {
     display: "flex",

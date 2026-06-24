@@ -24,6 +24,8 @@ export default function OuenPage() {
   const [quantity, setQuantity] = useState(1);
   const [paid, setPaid] = useState("");
   const [message, setMessage] = useState("");
+  const [customMenuName, setCustomMenuName] = useState("");
+  const [customMenuPrice, setCustomMenuPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -91,6 +93,8 @@ export default function OuenPage() {
     setError("");
     setSearch("");
     setMessage("");
+    setCustomMenuName("");
+    setCustomMenuPrice("");
   };
 
   if (done) {
@@ -183,6 +187,44 @@ export default function OuenPage() {
                 </button>
               ))
             )}
+
+            <div style={styles.customMenuCard}>
+              <p style={styles.customMenuLabel}>その他</p>
+              <div style={styles.customMenuRow}>
+                <input
+                  value={customMenuName}
+                  onChange={(e) => setCustomMenuName(e.target.value)}
+                  placeholder="内容"
+                  style={styles.customMenuNameInput}
+                />
+                <div style={styles.customMenuPriceWrap}>
+                  <span style={styles.yen}>¥</span>
+                  <input
+                    type="number"
+                    value={customMenuPrice}
+                    onChange={(e) => setCustomMenuPrice(e.target.value)}
+                    placeholder="0"
+                    style={styles.customMenuPriceInput}
+                    min={0}
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!customMenuName || !customMenuPrice) return;
+                  setSelectedMenu({ name: customMenuName, price: Number(customMenuPrice) });
+                  setStep(2);
+                }}
+                disabled={!customMenuName || !customMenuPrice}
+                style={{
+                  ...styles.customMenuBtn,
+                  ...(!customMenuName || !customMenuPrice ? styles.btnDisabled : {}),
+                }}
+              >
+                これで進む
+              </button>
+            </div>
+
             <button onClick={() => setStep(0)} style={styles.backBtn}>← 戻る</button>
           </div>
         )}
@@ -526,6 +568,59 @@ const styles = {
     border: "none",
     background: "transparent",
     textAlign: "right",
+  },
+  customMenuCard: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: "14px 16px",
+    boxShadow: "var(--shadow)",
+    marginBottom: 8,
+    border: "2px dashed #a5d6a7",
+  },
+  customMenuLabel: {
+    fontSize: 12,
+    color: "var(--text-sub)",
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  customMenuRow: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 10,
+  },
+  customMenuNameInput: {
+    flex: 2,
+    padding: "10px 12px",
+    border: "2px solid #e0e0e0",
+    borderRadius: 10,
+    fontSize: 14,
+    background: "#fafafa",
+  },
+  customMenuPriceWrap: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    border: "2px solid #e0e0e0",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  customMenuPriceInput: {
+    flex: 1,
+    padding: "10px 8px",
+    fontSize: 14,
+    border: "none",
+    background: "transparent",
+    textAlign: "right",
+    minWidth: 0,
+  },
+  customMenuBtn: {
+    width: "100%",
+    padding: "12px",
+    background: "var(--green-primary)",
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+    borderRadius: 10,
   },
   messageInput: {
     width: "100%",
