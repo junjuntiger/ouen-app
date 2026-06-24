@@ -23,6 +23,7 @@ export default function OuenPage() {
   const [selectedMenu, setSelectedMenu] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [paid, setPaid] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -64,6 +65,7 @@ export default function OuenPage() {
         price: totalPrice,
         paid: paidNum,
         op,
+        message: message.trim() || null,
         createdAt: serverTimestamp(),
       });
 
@@ -88,6 +90,7 @@ export default function OuenPage() {
     setDone(false);
     setError("");
     setSearch("");
+    setMessage("");
   };
 
   if (done) {
@@ -228,6 +231,15 @@ export default function OuenPage() {
                   )}
                 </div>
               )}
+
+              <label style={{ ...styles.label, marginTop: 16 }}>メッセージ（任意）</label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="ひとことメッセージを添えよう"
+                style={styles.messageInput}
+                rows={3}
+              />
             </div>
 
             {error && <p style={styles.error}>{error}</p>}
@@ -251,6 +263,7 @@ export default function OuenPage() {
               <Row label="数量" value={`${quantity}個`} />
               <Row label="定価合計" value={`¥${totalPrice.toLocaleString()}`} />
               <Row label="支払い金額" value={<strong style={{ fontSize: 20 }}>¥{paidNum.toLocaleString()}</strong>} />
+              {message.trim() && <Row label="メッセージ" value={message.trim()} />}
               <div style={styles.divider} />
               <Row
                 label="獲得OP"
@@ -513,6 +526,16 @@ const styles = {
     border: "none",
     background: "transparent",
     textAlign: "right",
+  },
+  messageInput: {
+    width: "100%",
+    padding: "12px 14px",
+    border: "2px solid #e0e0e0",
+    borderRadius: 10,
+    fontSize: 14,
+    background: "#fafafa",
+    resize: "none",
+    fontFamily: "inherit",
   },
   opPreview: {
     display: "flex",

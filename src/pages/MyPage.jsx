@@ -4,6 +4,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   doc,
   updateDoc,
 } from "firebase/firestore";
@@ -19,6 +20,9 @@ export default function MyPage() {
   const [tab, setTab] = useState("history"); // "history" | "edit"
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [userNames, setUserNames] = useState({});
+  const [filterDir, setFilterDir] = useState("all");
+  const [filterPeriod, setFilterPeriod] = useState("all");
 
   const [name, setName] = useState(userProfile?.name ?? "");
   const [job, setJob] = useState(userProfile?.job ?? "");
@@ -45,6 +49,16 @@ export default function MyPage() {
           const bt = b.createdAt?.toDate?.() ?? new Date(0);
           return bt - at;
         });
+
+        const counterpartIds = [...new Set(
+          unique.map((tx) => tx.direction === "sent" ? tx.toUserId : tx.fromUserId).filter(Boolean)
+        )];
+        const nameMap = {};
+        await Promise.all(counterpartIds.map(async (uid) => {
+          const snap = await getDoc(doc(db, "users", uid));
+          if (snap.exists()) nameMap[uid] = snap.data().name ?? "不明";
+        }));
+        setUserNames(nameMap);
         setHistory(unique);
       } catch (e) {
         console.error(e);
@@ -54,6 +68,25 @@ export default function MyPage() {
     };
     fetchHistory();
   }, [user.uid]);
+
+  const isInPeriod = (tx, period) => {
+    if (period === "all") return true;
+    const d = tx.createdAt?.toDate?.() ?? null;
+    if (!d) return false;
+    const now = new Date();
+    const diff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (period === "this") return diff === 0;
+    if (period === "last") return diff === 1;
+    if (period === "2ago") return diff === 2;
+    if (period === "before") return diff > 2;
+    return true;
+  };
+
+  const filteredHistory = history.filter((tx) => {
+    if (filterDir !== "all" && tx.direction !== filterDir) return false;
+    if (!isInPeriod(tx, filterPeriod)) return false;
+    return true;
+  });
 
   const formatDate = (ts) => {
     if (!ts) return "";
@@ -122,30 +155,54 @@ export default function MyPage() {
       <div style={styles.body}>
         {tab === "history" && (
           <div>
+            <div style={styles.filterRow}>
+              <select value={filterDir} onChange={(e) => setFilterDir(e.target.value)} style={styles.filterSelect}>
+                <option value="all">支払い・受取</option>
+                <option value="sent">支払い</option>
+                <option value="recv">受取</option>
+              </select>
+              <select value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} style={styles.filterSelect}>
+                <option value="all">全て</option>
+                <option value="this">今月</option>
+                <option value="last">先月</option>
+                <option value="2ago">先々月</option>
+                <option value="before">その前</option>
+              </select>
+            </div>
             {loadingHistory ? (
               <div style={styles.loading}>読み込み中...</div>
-            ) : history.length === 0 ? (
+            ) : filteredHistory.length === 0 ? (
               <div style={styles.empty}>
                 <div style={styles.emptyIcon}>📋</div>
                 <p>取引履歴がありません</p>
               </div>
             ) : (
               <div style={styles.historyList}>
-                {history.map((tx) => (
-                  <div key={tx.id} style={styles.historyCard}>
-                    <div style={styles.historyTop}>
-                      <span style={styles.historyMenu}>{tx.menuName}</span>
-                      <span style={styles.historyDate}>{formatDate(tx.createdAt)}</span>
+                {filteredHistory.map((tx) => {
+                  const counterpartId = tx.direction === "sent" ? tx.toUserId : tx.fromUserId;
+                  const counterpartName = userNames[counterpartId] ?? "不明";
+                  return (
+                    <div key={tx.id} style={styles.historyCard}>
+                      <div style={styles.historyTop}>
+                        <span style={styles.historyMenu}>{tx.menuName}</span>
+                        <span style={styles.historyDate}>{formatDate(tx.createdAt)}</span>
+                      </div>
+                      <div style={styles.historyCounterpart}>
+                        <span style={styles.historyCounterpartLabel}>
+                          {tx.direction === "sent" ? "誰に" : "誰から"}
+                        </span>
+                        <span style={styles.historyCounterpartName}>{counterpartName}さん</span>
+                      </div>
+                      <div style={styles.historyBottom}>
+                        <span style={{ ...styles.historyLabel, color: tx.direction === "sent" ? "#e65100" : "#2E7D32" }}>
+                          {tx.direction === "sent" ? "支払い" : "受取"}
+                        </span>
+                        <span style={styles.historyPaid}>¥{tx.paid?.toLocaleString()}</span>
+                        <span style={styles.historyOP}>+{tx.op?.toLocaleString()} OP</span>
+                      </div>
                     </div>
-                    <div style={styles.historyBottom}>
-                      <span style={{ ...styles.historyLabel, color: tx.direction === "sent" ? "#e65100" : "#2E7D32" }}>
-                        {tx.direction === "sent" ? "支払い" : "受取"}
-                      </span>
-                      <span style={styles.historyPaid}>¥{tx.paid?.toLocaleString()}</span>
-                      <span style={styles.historyOP}>+{tx.op?.toLocaleString()} OP</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -320,6 +377,21 @@ const styles = {
     fontSize: 40,
     marginBottom: 12,
   },
+  filterRow: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterSelect: {
+    flex: 1,
+    padding: "10px 12px",
+    border: "2px solid #e0e0e0",
+    borderRadius: 10,
+    fontSize: 14,
+    background: "#fff",
+    color: "var(--text-main)",
+    appearance: "auto",
+  },
   historyList: {
     display: "flex",
     flexDirection: "column",
@@ -343,6 +415,24 @@ const styles = {
   historyDate: {
     fontSize: 12,
     color: "var(--text-sub)",
+  },
+  historyCounterpart: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  historyCounterpartLabel: {
+    fontSize: 11,
+    color: "var(--text-sub)",
+    background: "#f5f5f5",
+    borderRadius: 4,
+    padding: "2px 6px",
+  },
+  historyCounterpartName: {
+    fontSize: 13,
+    color: "var(--text-main)",
+    fontWeight: "bold",
   },
   historyBottom: {
     display: "flex",
