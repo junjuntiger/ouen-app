@@ -58,7 +58,7 @@ export default function AdminPage() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <button onClick={() => navigate("/")} style={styles.backBtn}>← 戻る</button>
+        <button onClick={() => navigate("/")} style={styles.backBtn}>🏠</button>
         <h1 style={styles.title}>管理画面</h1>
       </div>
 
