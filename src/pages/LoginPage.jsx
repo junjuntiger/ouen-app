@@ -15,6 +15,7 @@ export default function LoginPage() {
     if (msg.includes("User already registered")) return "このメールアドレスは既に登録されています";
     if (msg.includes("Password should be at least")) return "パスワードは6文字以上で入力してください";
     if (msg.includes("Unable to validate email address") || msg.includes("Invalid email") || msg.includes("is invalid")) return "正しいメールアドレスを入力してください";
+    if (msg.includes("Email not confirmed")) return "メールアドレスの確認が完了していません。届いた確認メール内のリンクをクリックしてください";
     return `処理に失敗しました（${msg || "不明なエラー"}）`;
   };
 
