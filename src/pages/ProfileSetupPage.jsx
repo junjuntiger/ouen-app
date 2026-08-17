@@ -3,7 +3,7 @@ import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 
 const DEFAULT_MENUS = [
-  { name: "公演チケット", price: 3000 },
+  { name: "メニュー1", price: 3000 },
 ];
 
 export default function ProfileSetupPage() {
