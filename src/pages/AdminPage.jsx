@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, orderBy, query, doc, deleteDoc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -25,19 +24,23 @@ export default function AdminPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [usersSnap, txSnap] = await Promise.all([
-        getDocs(collection(db, "users")),
-        getDocs(query(collection(db, "transactions"), orderBy("createdAt", "desc"))),
+      const [usersRes, txRes] = await Promise.all([
+        supabase.from("profiles").select("*"),
+        supabase
+          .from("transactions")
+          .select("*, from_user:profiles!transactions_from_user_id_fkey(name), to_user:profiles!transactions_to_user_id_fkey(name)")
+          .order("created_at", { ascending: false }),
       ]);
-      const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setUsers(usersData);
+      if (usersRes.error) throw usersRes.error;
+      if (txRes.error) throw txRes.error;
 
-      const txData = txSnap.docs.map((d) => {
-        const tx = { id: d.id, ...d.data() };
-        const from = usersData.find((u) => u.id === tx.fromUserId);
-        const to = usersData.find((u) => u.id === tx.toUserId);
-        return { ...tx, fromName: from?.name ?? "不明", toName: to?.name ?? "不明" };
-      });
+      setUsers(usersRes.data ?? []);
+
+      const txData = (txRes.data ?? []).map((tx) => ({
+        ...tx,
+        fromName: tx.from_user?.name ?? "不明",
+        toName: tx.to_user?.name ?? "不明",
+      }));
       setTransactions(txData);
     } catch (e) {
       console.error(e);
@@ -54,14 +57,14 @@ export default function AdminPage() {
   const saveOp = async (userId) => {
     const newOp = Number(editingOpValue);
     if (isNaN(newOp)) return;
-    await updateDoc(doc(db, "users", userId), { op: newOp });
+    await supabase.from("profiles").update({ op: newOp }).eq("id", userId);
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, op: newOp } : u));
     setEditingOpId(null);
   };
 
   const formatDate = (ts) => {
     if (!ts) return "-";
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const d = new Date(ts);
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -151,7 +154,7 @@ export default function AdminPage() {
                           </span>
                         )}
                       </td>
-                      <td style={styles.td}>{formatDate(u.createdAt)}</td>
+                      <td style={styles.td}>{formatDate(u.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -178,15 +181,15 @@ export default function AdminPage() {
                     <tr key={tx.id} style={styles.tr}>
                       <td style={styles.td}>{tx.fromName}</td>
                       <td style={styles.td}>{tx.toName}</td>
-                      <td style={styles.td}>{tx.menuName}</td>
+                      <td style={styles.td}>{tx.menu_name}</td>
                       <td style={{ ...styles.td, textAlign: "right" }}>¥{(tx.paid || 0).toLocaleString()}</td>
                       <td style={{ ...styles.td, textAlign: "right" }}>{(tx.op || 0).toLocaleString()}</td>
-                      <td style={styles.td}>{formatDate(tx.createdAt)}</td>
+                      <td style={styles.td}>{formatDate(tx.created_at)}</td>
                       <td style={styles.td}>
                         <button
                           onClick={async () => {
                             if (!window.confirm("この取引を削除しますか？")) return;
-                            await deleteDoc(doc(db, "transactions", tx.id));
+                            await supabase.from("transactions").delete().eq("id", tx.id);
                             setTransactions((prev) => prev.filter((t) => t.id !== tx.id));
                           }}
                           style={styles.deleteBtn}

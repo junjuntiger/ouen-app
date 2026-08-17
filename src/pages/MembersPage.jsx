@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "../components/BottomNav";
+import Avatar from "../components/Avatar";
 
 export default function MembersPage() {
   const { user } = useAuth();
@@ -15,11 +15,12 @@ export default function MembersPage() {
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const snap = await getDocs(collection(db, "users"));
-        const list = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (b.op ?? 0) - (a.op ?? 0));
-        setMembers(list);
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("op", { ascending: false });
+        if (error) throw error;
+        setMembers(data ?? []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -61,12 +62,19 @@ export default function MembersPage() {
           <div style={styles.rankingRow}>
             {topThree.map((m, i) => (
               <div key={m.id} style={styles.rankCard}>
-                <div style={styles.rankBadge}>{["🥇", "🥈", "🥉"][i]}</div>
-                <div style={{ ...styles.rankAvatar, background: ["#FFF8E1", "#F5F5F5", "#FBE9E7"][i] }}>
-                  <span style={{ color: ["#F9A825", "#757575", "#BF360C"][i], fontWeight: "bold", fontSize: 18 }}>
-                    {m.name?.[0] ?? "?"}
-                  </span>
+                <div style={{ ...styles.rankBadge, color: ["#2E7D32", "#8D6E38", "#C2185B"][i] }}>
+                  {["松", "竹", "梅"][i]}
                 </div>
+                <Avatar
+                  url={m.avatar_url}
+                  name={m.name}
+                  size={40}
+                  style={{
+                    background: ["#E8F5E9", "#FFF8E1", "#FCE4EC"][i],
+                    color: ["#2E7D32", "#F9A825", "#C2185B"][i],
+                    margin: "0 auto 6px",
+                  }}
+                />
                 <p style={styles.rankName}>{m.name}</p>
                 <p style={styles.rankOP}>{(m.op ?? 0).toLocaleString()} OP</p>
               </div>
@@ -90,11 +98,11 @@ export default function MembersPage() {
                   <div style={styles.rank}>
                     {!search ? `#${i + 1}` : ""}
                   </div>
-                  <div style={styles.avatar}>{m.name?.[0] ?? "?"}</div>
+                  <Avatar url={m.avatar_url} name={m.name} size={40} style={styles.avatar} />
                   <div style={styles.info}>
                     <div style={styles.nameRow}>
                       <span style={styles.name}>{m.name}</span>
-                      {m.id === user.uid && <span style={styles.meBadge}>あなた</span>}
+                      {m.id === user.id && <span style={styles.meBadge}>あなた</span>}
                     </div>
                     <span style={styles.sub}>{m.job}{m.area ? ` ・ ${m.area}` : ""}</span>
                     {m.message && <span style={styles.msg}>「{m.message}」</span>}
@@ -103,7 +111,7 @@ export default function MembersPage() {
                 <div style={styles.cardRight}>
                   <p style={styles.op}>{(m.op ?? 0).toLocaleString()}</p>
                   <p style={styles.opLabel}>OP</p>
-                  {m.id !== user.uid && (
+                  {m.id !== user.id && (
                     <button
                       onClick={() => navigate("/ouen")}
                       style={styles.ouenBtn}
@@ -182,7 +190,8 @@ const styles = {
     border: "1px solid #e0e0e0",
   },
   rankBadge: {
-    fontSize: 20,
+    fontSize: 22,
+    fontWeight: "bold",
     marginBottom: 6,
   },
   rankAvatar: {

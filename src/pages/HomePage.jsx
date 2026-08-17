@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, query, orderBy, limit, getDocs, doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 import BottomNav from "../components/BottomNav";
 
@@ -12,26 +11,17 @@ export default function HomePage() {
   useEffect(() => {
     const fetchTimeline = async () => {
       try {
-        const q = query(
-          collection(db, "transactions"),
-          orderBy("createdAt", "desc"),
-          limit(20)
-        );
-        const snap = await getDocs(q);
-        const items = await Promise.all(
-          snap.docs.map(async (d) => {
-            const tx = { id: d.id, ...d.data() };
-            const [fromSnap, toSnap] = await Promise.all([
-              getDoc(doc(db, "users", tx.fromUserId)),
-              getDoc(doc(db, "users", tx.toUserId)),
-            ]);
-            return {
-              ...tx,
-              fromName: fromSnap.exists() ? fromSnap.data().name : "不明",
-              toName: toSnap.exists() ? toSnap.data().name : "不明",
-            };
-          })
-        );
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("*, from_user:profiles!transactions_from_user_id_fkey(name), to_user:profiles!transactions_to_user_id_fkey(name)")
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        const items = (data ?? []).map((tx) => ({
+          ...tx,
+          fromName: tx.from_user?.name ?? "不明",
+          toName: tx.to_user?.name ?? "不明",
+        }));
         setTimeline(items);
       } catch (e) {
         console.error(e);
@@ -45,7 +35,7 @@ export default function HomePage() {
   const formatOP = (op) => op?.toLocaleString() ?? "0";
   const formatDate = (ts) => {
     if (!ts) return "";
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const d = new Date(ts);
     return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
 
@@ -53,8 +43,7 @@ export default function HomePage() {
     <div style={styles.container}>
       <div style={styles.header}>
         <div style={styles.headerTop}>
-          <div style={styles.logo}>応援</div>
-          <span style={styles.appName}>おーえん</span>
+          <div style={styles.logo}>shinEDO-ouen</div>
         </div>
         <div style={styles.opCard}>
           <p style={styles.opLabel}>あなたのOPポイント</p>
@@ -87,10 +76,10 @@ export default function HomePage() {
                     <span style={styles.txArrow}> → </span>
                     <span style={styles.txTo}>{tx.toName}</span>
                   </div>
-                  <span style={styles.txDate}>{formatDate(tx.createdAt)}</span>
+                  <span style={styles.txDate}>{formatDate(tx.created_at)}</span>
                 </div>
                 <div style={styles.txBody}>
-                  <span style={styles.txMenu}>{tx.menuName}</span>
+                  <span style={styles.txMenu}>{tx.menu_name}</span>
                   <div style={styles.txRight}>
                     <span style={styles.txPaid}>¥{tx.paid?.toLocaleString()}</span>
                     <span style={styles.txOP}>+{tx.op?.toLocaleString()} OP</span>
@@ -124,14 +113,10 @@ const styles = {
     marginBottom: 20,
   },
   logo: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#fff",
-  },
-  appName: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.85)",
-    letterSpacing: 2,
+    letterSpacing: 0.5,
   },
   opCard: {
     background: "rgba(255,255,255,0.12)",

@@ -1,9 +1,16 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase/config";
+import { supabase } from "../supabase/config";
 
 const AuthContext = createContext(null);
+
+async function fetchProfile(userId) {
+  const { data } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+  return data;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -11,22 +18,31 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        const docRef = doc(db, "users", firebaseUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserProfile(docSnap.data());
-        } else {
-          setUserProfile(null);
-        }
+    let active = true;
+
+    const loadUser = async (sessionUser) => {
+      setUser(sessionUser);
+      if (sessionUser) {
+        const profile = await fetchProfile(sessionUser.id);
+        if (active) setUserProfile(profile);
       } else {
-        setUserProfile(null);
+        if (active) setUserProfile(null);
       }
-      setLoading(false);
+      if (active) setLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      loadUser(session?.user ?? null);
     });
-    return unsubscribe;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      loadUser(session?.user ?? null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (

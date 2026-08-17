@@ -1,78 +1,65 @@
-import { useState, useRef, useEffect } from "react";
-import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
-import { auth } from "../firebase/config";
+import { useState } from "react";
+import { supabase } from "../supabase/config";
 
 export default function LoginPage() {
-  const [step, setStep] = useState("phone");
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
+  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const confirmationRef = useRef(null);
-  const verifierRef = useRef(null);
+  const [notice, setNotice] = useState("");
 
-  useEffect(() => {
-    try {
-      const verifier = new RecaptchaVerifier("recaptcha-container", {
-        size: "invisible",
-        callback: () => {},
-        "expired-callback": () => {
-          setError("reCAPTCHAの有効期限が切れました。もう一度お試しください。");
-        },
-      }, auth);
-      verifierRef.current = verifier;
-    } catch (e) {
-      console.error("RecaptchaVerifier初期化エラー:", e);
-    }
-    return () => {
-      if (verifierRef.current) {
-        try { verifierRef.current.clear(); } catch (_) {}
-        verifierRef.current = null;
-      }
-    };
-  }, []);
+  const translateError = (e) => {
+    const msg = e.message ?? "";
+    if (msg.includes("Invalid login credentials")) return "メールアドレスまたはパスワードが正しくありません";
+    if (msg.includes("User already registered")) return "このメールアドレスは既に登録されています";
+    if (msg.includes("Password should be at least")) return "パスワードは6文字以上で入力してください";
+    if (msg.includes("Unable to validate email address") || msg.includes("Invalid email") || msg.includes("is invalid")) return "正しいメールアドレスを入力してください";
+    return `処理に失敗しました（${msg || "不明なエラー"}）`;
+  };
 
-  const handleSendCode = async () => {
+  const handleLogin = async () => {
     setError("");
-    const fullPhone = phone.startsWith("+") ? phone : "+81" + phone.replace(/^0/, "");
-    if (fullPhone.replace(/\D/g, "").length < 10) {
-      setError("正しい電話番号を入力してください");
-      return;
-    }
+    setNotice("");
     setLoading(true);
     try {
-      const confirmation = await signInWithPhoneNumber(auth, fullPhone, verifierRef.current);
-      confirmationRef.current = confirmation;
-      setStep("code");
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw signInError;
     } catch (e) {
-      console.error("SMS送信エラー:", e.code, e.message);
-      if (e.code === "auth/invalid-phone-number") {
-        setError("電話番号の形式が正しくありません");
-      } else if (e.code === "auth/too-many-requests") {
-        setError("送信回数が多すぎます。しばらく待ってから再試行してください");
-      } else if (e.code === "auth/captcha-check-failed") {
-        setError("reCAPTCHA認証に失敗しました。ページを再読み込みしてください");
-      } else {
-        setError(`送信に失敗しました（${e.code ?? "不明"}）`);
-      }
+      setError(translateError(e));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyCode = async () => {
+  const handleSignup = async () => {
     setError("");
-    if (code.length !== 6) {
-      setError("6桁のコードを入力してください");
-      return;
-    }
+    setNotice("");
     setLoading(true);
     try {
-      await confirmationRef.current.confirm(code);
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) throw signUpError;
+      if (!data.session) {
+        setNotice("確認メールを送信しました。メール内のリンクをクリックしてからログインしてください。");
+        setMode("login");
+        setPassword("");
+      }
     } catch (e) {
-      setError("コードが正しくありません");
+      setError(translateError(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!email || !password) {
+      setError("メールアドレスとパスワードを入力してください");
+      return;
+    }
+    if (mode === "login") {
+      handleLogin();
+    } else {
+      handleSignup();
     }
   };
 
@@ -80,78 +67,69 @@ export default function LoginPage() {
     <div style={styles.container}>
       <div style={styles.header}>
         <div style={styles.logoWrapper}>
-          <span style={styles.logoKanji}>応援</span>
-          <span style={styles.logoKana}>おーえん</span>
+          <span style={styles.logoKanji}>shinEDO-ouen</span>
         </div>
         <p style={styles.tagline}>日本の伝統文化を、みんなで守る</p>
       </div>
 
       <div style={styles.card}>
-        {step === "phone" ? (
-          <>
-            <h2 style={styles.title}>電話番号でログイン</h2>
-            <p style={styles.desc}>SMSで確認コードを送信します</p>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>電話番号</label>
-              <div style={styles.phoneInput}>
-                <span style={styles.countryCode}>🇯🇵 +81</span>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="09012345678"
-                  style={styles.input}
-                  maxLength={11}
-                />
-              </div>
-            </div>
-            {error && <p style={styles.error}>{error}</p>}
-            <button
-              onClick={handleSendCode}
-              disabled={loading || !phone}
-              style={{ ...styles.btn, ...(loading || !phone ? styles.btnDisabled : {}) }}
-            >
-              {loading ? "送信中..." : "確認コードを送る"}
-            </button>
-          </>
-        ) : (
-          <>
-            <h2 style={styles.title}>確認コードを入力</h2>
-            <p style={styles.desc}>SMSに届いた6桁のコードを入力してください</p>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>確認コード</label>
-              <input
-                type="number"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="123456"
-                style={{ ...styles.input, width: "100%", textAlign: "center", letterSpacing: 8, fontSize: 24 }}
-                maxLength={6}
-              />
-            </div>
-            {error && <p style={styles.error}>{error}</p>}
-            <button
-              onClick={handleVerifyCode}
-              disabled={loading || code.length !== 6}
-              style={{ ...styles.btn, ...(loading || code.length !== 6 ? styles.btnDisabled : {}) }}
-            >
-              {loading ? "確認中..." : "ログイン"}
-            </button>
-            <button
-              onClick={() => { setStep("phone"); setCode(""); setError(""); }}
-              style={styles.backBtn}
-            >
-              電話番号を変更する
-            </button>
-          </>
-        )}
-      </div>
+        <div style={styles.tabs}>
+          <button
+            onClick={() => { setMode("login"); setError(""); setNotice(""); }}
+            style={{ ...styles.tabBtn, ...(mode === "login" ? styles.tabActive : {}) }}
+          >
+            ログイン
+          </button>
+          <button
+            onClick={() => { setMode("signup"); setError(""); setNotice(""); }}
+            style={{ ...styles.tabBtn, ...(mode === "signup" ? styles.tabActive : {}) }}
+          >
+            新規登録
+          </button>
+        </div>
 
-      <div id="recaptcha-container" />
+        <h2 style={styles.title}>{mode === "login" ? "メールアドレスでログイン" : "新規アカウント登録"}</h2>
+        <p style={styles.desc}>{mode === "login" ? "登録済みのメールアドレスとパスワードを入力してください" : "メールアドレスとパスワードを設定してください"}</p>
+
+        <div style={styles.inputGroup}>
+          <label style={styles.label}>メールアドレス</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            style={styles.input}
+            autoComplete="email"
+          />
+        </div>
+
+        <div style={styles.inputGroup}>
+          <label style={styles.label}>パスワード</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="6文字以上"
+            style={styles.input}
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+          />
+        </div>
+
+        {notice && <p style={styles.notice}>{notice}</p>}
+        {error && <p style={styles.error}>{error}</p>}
+
+        <button
+          onClick={handleSubmit}
+          disabled={loading || !email || !password}
+          style={{ ...styles.btn, ...(loading || !email || !password ? styles.btnDisabled : {}) }}
+        >
+          {loading ? "処理中..." : mode === "login" ? "ログイン" : "登録する"}
+        </button>
+      </div>
 
       <div style={styles.footer}>
         <p style={styles.footerText}>
-          ログインすることで<br />
+          {mode === "login" ? "ログイン" : "登録"}することで<br />
           <span style={styles.link}>利用規約</span>および<span style={styles.link}>プライバシーポリシー</span>に同意したものとみなします
         </p>
       </div>
@@ -179,16 +157,12 @@ const styles = {
     gap: 4,
   },
   logoKanji: {
-    fontSize: 48,
+    fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
     lineHeight: 1,
+    letterSpacing: 1,
     textShadow: "0 2px 8px rgba(0,0,0,0.2)",
-  },
-  logoKana: {
-    fontSize: 20,
-    color: "rgba(255,255,255,0.9)",
-    letterSpacing: 4,
   },
   tagline: {
     marginTop: 12,
@@ -202,6 +176,27 @@ const styles = {
     width: "100%",
     maxWidth: 400,
     boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+  },
+  tabs: {
+    display: "flex",
+    borderRadius: 12,
+    background: "#f5f5f5",
+    padding: 4,
+    marginBottom: 24,
+  },
+  tabBtn: {
+    flex: 1,
+    padding: "10px",
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#757575",
+    background: "transparent",
+    borderRadius: 9,
+  },
+  tabActive: {
+    background: "#fff",
+    color: "#2E7D32",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
   },
   title: {
     fontSize: 22,
@@ -224,26 +219,12 @@ const styles = {
     color: "#424242",
     marginBottom: 8,
   },
-  phoneInput: {
-    display: "flex",
-    alignItems: "center",
-    border: "2px solid #e0e0e0",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  countryCode: {
-    padding: "12px 12px",
-    background: "#f5f5f5",
-    fontSize: 14,
-    color: "#424242",
-    borderRight: "1px solid #e0e0e0",
-    whiteSpace: "nowrap",
-  },
   input: {
-    flex: 1,
+    width: "100%",
     padding: "14px 12px",
     fontSize: 16,
-    border: "none",
+    border: "2px solid #e0e0e0",
+    borderRadius: 10,
     background: "transparent",
   },
   btn: {
@@ -260,16 +241,13 @@ const styles = {
     background: "#a5d6a7",
     cursor: "not-allowed",
   },
-  backBtn: {
-    width: "100%",
-    padding: "12px",
-    background: "transparent",
-    color: "#757575",
-    fontSize: 14,
-    marginTop: 12,
-  },
   error: {
     color: "#c62828",
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  notice: {
+    color: "#2E7D32",
     fontSize: 13,
     marginBottom: 8,
   },

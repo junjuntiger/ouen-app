@@ -1,16 +1,8 @@
 import { useState, useEffect } from "react";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  doc,
-  updateDoc,
-  increment,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "../firebase/config";
+import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 import BottomNav from "../components/BottomNav";
+import Avatar from "../components/Avatar";
 
 const STEPS = ["メンバー選択", "メニュー・金額", "確認"];
 
@@ -30,14 +22,12 @@ export default function OuenPage() {
 
   useEffect(() => {
     const fetchMembers = async () => {
-      const snap = await getDocs(collection(db, "users"));
-      const list = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((m) => m.id !== user.uid);
+      const { data } = await supabase.from("profiles").select("*");
+      const list = (data ?? []).filter((m) => m.id !== user.id);
       setMembers(list);
     };
     fetchMembers();
-  }, [user.uid]);
+  }, [user.id]);
 
   const filteredMembers = members.filter(
     (m) =>
@@ -84,21 +74,15 @@ export default function OuenPage() {
       ? `${cartItems[0].name}${cartItems[0].quantity > 1 ? ` × ${cartItems[0].quantity}` : ""}`
       : cartItems.map((i) => `${i.name}${i.quantity > 1 ? ` × ${i.quantity}` : ""}`).join("、");
     try {
-      await addDoc(collection(db, "transactions"), {
-        fromUserId: user.uid,
-        toUserId: selectedMember.id,
-        menuName: menuNameSummary,
-        items: cartItems,
-        price: cartTotal,
-        paid: totalPaid,
-        op,
-        message: message.trim() || null,
-        createdAt: serverTimestamp(),
+      const { error: rpcError } = await supabase.rpc("create_ouen_transaction", {
+        p_to_user_id: selectedMember.id,
+        p_menu_name: menuNameSummary,
+        p_items: cartItems,
+        p_price: cartTotal,
+        p_paid: totalPaid,
+        p_message: message.trim() || null,
       });
-
-      if (op > 0) {
-        await updateDoc(doc(db, "users", selectedMember.id), { op: increment(op) });
-      }
+      if (rpcError) throw rpcError;
 
       setDone(true);
     } catch (e) {
@@ -173,7 +157,7 @@ export default function OuenPage() {
                     onClick={() => { setSelectedMember(m); setStep(1); }}
                     style={styles.memberCard}
                   >
-                    <div style={styles.memberAvatar}>{m.name?.[0] ?? "?"}</div>
+                    <Avatar url={m.avatar_url} name={m.name} size={44} style={styles.memberAvatar} />
                     <div style={styles.memberInfo}>
                       <span style={styles.memberName}>{m.name}</span>
                       <span style={styles.memberSub}>{m.job}{m.area ? ` ・ ${m.area}` : ""}</span>
@@ -189,7 +173,7 @@ export default function OuenPage() {
         {step === 1 && selectedMember && (
           <div>
             <div style={styles.selectedInfo}>
-              <div style={styles.memberAvatar}>{selectedMember.name?.[0]}</div>
+              <Avatar url={selectedMember.avatar_url} name={selectedMember.name} size={44} style={styles.memberAvatar} />
               <div>
                 <p style={styles.memberName}>{selectedMember.name}</p>
                 <p style={styles.memberSub}>{selectedMember.job}</p>

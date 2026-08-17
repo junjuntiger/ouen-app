@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 
 const DEFAULT_MENUS = [
@@ -41,16 +40,21 @@ export default function ProfileSetupPage() {
     setLoading(true);
     try {
       const profile = {
+        id: user.id,
         name: name.trim(),
         job: job.trim(),
         area: area.trim(),
         message: message.trim(),
         op: 0,
         menus: validMenus,
-        createdAt: new Date(),
       };
-      await setDoc(doc(db, "users", user.uid), profile);
-      setUserProfile(profile);
+      const { data, error: insertError } = await supabase
+        .from("profiles")
+        .insert(profile)
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      setUserProfile(data);
     } catch (e) {
       setError("登録に失敗しました。もう一度お試しください。");
     } finally {
@@ -61,7 +65,7 @@ export default function ProfileSetupPage() {
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <div style={styles.logoSmall}>おーえん</div>
+        <div style={styles.logoSmall}>shinEDO-ouen</div>
         <span style={styles.step}>プロフィール設定</span>
       </div>
 
@@ -161,7 +165,7 @@ const styles = {
   },
   logoSmall: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
   },
   step: {

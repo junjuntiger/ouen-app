@@ -1,18 +1,11 @@
-import { useState, useEffect } from "react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  getDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import { signOut } from "firebase/auth";
-import { auth, db } from "../firebase/config";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "../components/BottomNav";
+import Avatar from "../components/Avatar";
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 export default function MyPage() {
   const { user, userProfile, setUserProfile } = useAuth();
@@ -20,7 +13,6 @@ export default function MyPage() {
   const [tab, setTab] = useState("history"); // "history" | "edit"
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [userNames, setUserNames] = useState({});
   const [filterDir, setFilterDir] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState("all");
 
@@ -31,35 +23,23 @@ export default function MyPage() {
   const [menus, setMenus] = useState(userProfile?.menus ?? []);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const [sentSnap, recvSnap] = await Promise.all([
-          getDocs(query(collection(db, "transactions"), where("fromUserId", "==", user.uid))),
-          getDocs(query(collection(db, "transactions"), where("toUserId", "==", user.uid))),
-        ]);
-        const all = [
-          ...sentSnap.docs.map((d) => ({ id: d.id, ...d.data(), direction: "sent" })),
-          ...recvSnap.docs.map((d) => ({ id: d.id, ...d.data(), direction: "recv" })),
-        ];
-        const unique = Array.from(new Map(all.map((t) => [t.id, t])).values());
-        unique.sort((a, b) => {
-          const at = a.createdAt?.toDate?.() ?? new Date(0);
-          const bt = b.createdAt?.toDate?.() ?? new Date(0);
-          return bt - at;
-        });
-
-        const counterpartIds = [...new Set(
-          unique.map((tx) => tx.direction === "sent" ? tx.toUserId : tx.fromUserId).filter(Boolean)
-        )];
-        const nameMap = {};
-        await Promise.all(counterpartIds.map(async (uid) => {
-          const snap = await getDoc(doc(db, "users", uid));
-          if (snap.exists()) nameMap[uid] = snap.data().name ?? "不明";
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("*, from_user:profiles!transactions_from_user_id_fkey(name), to_user:profiles!transactions_to_user_id_fkey(name)")
+          .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        const withDirection = (data ?? []).map((tx) => ({
+          ...tx,
+          direction: tx.from_user_id === user.id ? "sent" : "recv",
         }));
-        setUserNames(nameMap);
-        setHistory(unique);
+        setHistory(withDirection);
       } catch (e) {
         console.error(e);
       } finally {
@@ -67,11 +47,11 @@ export default function MyPage() {
       }
     };
     fetchHistory();
-  }, [user.uid]);
+  }, [user.id]);
 
   const isInPeriod = (tx, period) => {
     if (period === "all") return true;
-    const d = tx.createdAt?.toDate?.() ?? null;
+    const d = tx.created_at ? new Date(tx.created_at) : null;
     if (!d) return false;
     const now = new Date();
     const diff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
@@ -90,7 +70,7 @@ export default function MyPage() {
 
   const formatDate = (ts) => {
     if (!ts) return "";
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const d = new Date(ts);
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -105,13 +85,50 @@ export default function MyPage() {
         message,
         menus: menus.filter((m) => m.name && m.price > 0),
       };
-      await updateDoc(doc(db, "users", user.uid), updated);
+      const { error: updateError } = await supabase.from("profiles").update(updated).eq("id", user.id);
+      if (updateError) throw updateError;
       setUserProfile({ ...userProfile, ...updated });
       setSaveMsg("保存しました！");
     } catch (e) {
       setSaveMsg("保存に失敗しました");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setSaveMsg("画像ファイルを選択してください");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setSaveMsg("画像は5MB以下にしてください");
+      return;
+    }
+    setUploadingAvatar(true);
+    setSaveMsg("");
+    try {
+      const path = `${user.id}/avatar`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      const avatarUrl = `${publicUrl}?t=${Date.now()}`;
+
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: avatarUrl }).eq("id", user.id);
+      if (updateError) throw updateError;
+
+      setUserProfile({ ...userProfile, avatar_url: avatarUrl });
+      setSaveMsg("写真を更新しました！");
+    } catch (e) {
+      setSaveMsg("写真のアップロードに失敗しました");
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -126,7 +143,7 @@ export default function MyPage() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div style={styles.avatar}>{userProfile?.name?.[0] ?? "?"}</div>
+        <Avatar url={userProfile?.avatar_url} name={userProfile?.name} size={56} style={styles.avatar} />
         <div style={styles.headerInfo}>
           <p style={styles.headerName}>{userProfile?.name}</p>
           <p style={styles.headerSub}>{userProfile?.job}{userProfile?.area ? ` ・ ${userProfile?.area}` : ""}</p>
@@ -179,13 +196,12 @@ export default function MyPage() {
             ) : (
               <div style={styles.historyList}>
                 {filteredHistory.map((tx) => {
-                  const counterpartId = tx.direction === "sent" ? tx.toUserId : tx.fromUserId;
-                  const counterpartName = userNames[counterpartId] ?? "不明";
+                  const counterpartName = (tx.direction === "sent" ? tx.to_user?.name : tx.from_user?.name) ?? "不明";
                   return (
                     <div key={tx.id} style={styles.historyCard}>
                       <div style={styles.historyTop}>
-                        <span style={styles.historyMenu}>{tx.menuName}</span>
-                        <span style={styles.historyDate}>{formatDate(tx.createdAt)}</span>
+                        <span style={styles.historyMenu}>{tx.menu_name}</span>
+                        <span style={styles.historyDate}>{formatDate(tx.created_at)}</span>
                       </div>
                       <div style={styles.historyCounterpart}>
                         <span style={styles.historyCounterpartName}>
@@ -212,6 +228,26 @@ export default function MyPage() {
 
         {tab === "edit" && (
           <div style={styles.editSection}>
+            <div style={styles.avatarEditRow}>
+              <Avatar url={userProfile?.avatar_url} name={name} size={72} />
+              <div>
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  style={{ ...styles.avatarChangeBtn, ...(uploadingAvatar ? styles.btnDisabled : {}) }}
+                >
+                  {uploadingAvatar ? "アップロード中..." : "写真を変更"}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  style={{ display: "none" }}
+                />
+              </div>
+            </div>
+
             <label style={styles.label}>お名前</label>
             <input value={name} onChange={(e) => setName(e.target.value)} style={styles.input} />
 
@@ -272,7 +308,7 @@ export default function MyPage() {
             )}
 
             <button
-              onClick={() => signOut(auth)}
+              onClick={() => supabase.auth.signOut()}
               style={styles.logoutBtn}
             >
               ログアウト
@@ -460,6 +496,20 @@ const styles = {
     borderRadius: 16,
     padding: "20px 16px",
     boxShadow: "var(--shadow)",
+  },
+  avatarEditRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 8,
+  },
+  avatarChangeBtn: {
+    padding: "10px 16px",
+    background: "var(--green-pale)",
+    color: "var(--green-primary)",
+    fontSize: 13,
+    fontWeight: "bold",
+    borderRadius: 10,
   },
   label: {
     display: "block",
