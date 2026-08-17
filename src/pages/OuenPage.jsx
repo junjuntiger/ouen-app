@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "../supabase/config";
 import { useAuth } from "../contexts/AuthContext";
 import BottomNav from "../components/BottomNav";
@@ -8,10 +9,12 @@ const STEPS = ["メンバー選択", "メニュー・金額", "確認"];
 
 export default function OuenPage() {
   const { user, userProfile } = useAuth();
-  const [step, setStep] = useState(0);
+  const location = useLocation();
+  const preselectedMember = location.state?.member ?? null;
+  const [step, setStep] = useState(preselectedMember ? 1 : 0);
   const [members, setMembers] = useState([]);
   const [search, setSearch] = useState("");
-  const [selectedMember, setSelectedMember] = useState(null);
+  const [selectedMember, setSelectedMember] = useState(preselectedMember);
   const [cartItems, setCartItems] = useState([]);
   const [message, setMessage] = useState("");
   const [customMenuName, setCustomMenuName] = useState("");

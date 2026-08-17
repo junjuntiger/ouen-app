@@ -113,7 +113,7 @@ export default function MembersPage() {
                   <p style={styles.opLabel}>OP</p>
                   {m.id !== user.id && (
                     <button
-                      onClick={() => navigate("/ouen")}
+                      onClick={() => navigate("/ouen", { state: { member: m } })}
                       style={styles.ouenBtn}
                     >
                       おーえん
