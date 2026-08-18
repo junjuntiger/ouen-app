@@ -25,6 +25,7 @@ export default function MyPage() {
   const [saveMsg, setSaveMsg] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
+  const [confirmingId, setConfirmingId] = useState(null);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -72,6 +73,20 @@ export default function MyPage() {
     if (!ts) return "";
     const d = new Date(ts);
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  const handleConfirmReceipt = async (tx) => {
+    setConfirmingId(tx.id);
+    try {
+      const { error } = await supabase.rpc("confirm_ouen_transaction", { p_transaction_id: tx.id });
+      if (error) throw error;
+      setHistory((prev) => prev.map((t) => t.id === tx.id ? { ...t, status: "received" } : t));
+      setUserProfile({ ...userProfile, op: (userProfile?.op ?? 0) + (tx.op ?? 0) });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setConfirmingId(null);
+    }
   };
 
   const handleSave = async () => {
@@ -216,8 +231,21 @@ export default function MyPage() {
                           {tx.direction === "sent" ? "支払い" : "受取"}
                         </span>
                         <span style={styles.historyPaid}>¥{tx.paid?.toLocaleString()}</span>
-                        <span style={styles.historyOP}>+{tx.op?.toLocaleString()} OP</span>
+                        {tx.status === "pending" ? (
+                          <span style={styles.historyPending}>確認待ち</span>
+                        ) : (
+                          <span style={styles.historyOP}>+{tx.op?.toLocaleString()} OP</span>
+                        )}
                       </div>
+                      {tx.direction === "recv" && tx.status === "pending" && (
+                        <button
+                          onClick={() => handleConfirmReceipt(tx)}
+                          disabled={confirmingId === tx.id}
+                          style={{ ...styles.confirmBtn, ...(confirmingId === tx.id ? styles.btnDisabled : {}) }}
+                        >
+                          {confirmingId === tx.id ? "処理中..." : "受け取りました"}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -492,6 +520,24 @@ const styles = {
     fontSize: 14,
     fontWeight: "bold",
     color: "var(--green-light)",
+  },
+  historyPending: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#E65100",
+    background: "#FFF3E0",
+    borderRadius: 6,
+    padding: "2px 8px",
+  },
+  confirmBtn: {
+    width: "100%",
+    marginTop: 10,
+    padding: "10px",
+    background: "var(--green-primary)",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+    borderRadius: 10,
   },
   editSection: {
     background: "#fff",

@@ -29,7 +29,7 @@ begin
 
   return query
   select p.id, p.name, p.job, p.area, p.message, p.op, p.menus,
-         p.avatar_url, p.is_admin, p.created_at, u.email
+         p.avatar_url, p.is_admin, p.created_at, u.email::text
   from public.profiles p
   join auth.users u on u.id = p.id
   order by p.created_at;

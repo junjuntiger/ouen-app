@@ -77,11 +77,11 @@ supabase.auth.onAuthStateChange((event, session) => { ... });
 
 ---
 
-## 4. RPC：create_ouen_transaction
+## 4. RPC：create_ouen_transaction / confirm_ouen_transaction
 
-**概要：** 取引を作成し、受け取り者のOP残高を加算する。挿入と加算をPostgres関数内でアトミックに実行するため、途中失敗によるOPの二重加算・未加算は発生しない。
+**概要：** 取引の作成とOP加算は2段階のRPCで行う。支払う側の自己申告額だけでOPが増えることを防ぐため、`create_ouen_transaction`は`status='pending'`（確認待ち）で取引を作るだけでOPは加算せず、受け取る側が`confirm_ouen_transaction`を呼んで初めてOPが加算される。
 
-### 呼び出し
+### create_ouen_transaction の呼び出し
 
 ```js
 const { data, error } = await supabase.rpc("create_ouen_transaction", {
@@ -94,8 +94,6 @@ const { data, error } = await supabase.rpc("create_ouen_transaction", {
 });
 ```
 
-### パラメータ
-
 | パラメータ | 型 | 必須 | 説明 |
 |---|---|---|---|
 | p_to_user_id | uuid | ✅ | 受け取り者の`profiles.id` |
@@ -105,20 +103,26 @@ const { data, error } = await supabase.rpc("create_ouen_transaction", {
 | p_paid | integer | ✅ | 支払い合計 |
 | p_message | text | | 任意メッセージ |
 
-### サーバー側の処理（Postgres関数内）
+**サーバー側の処理：** 未認証なら例外 → `op = greatest(paid - price, 0)`を計算 → `transactions`に`status='pending'`で1行insert（`from_user_id = auth.uid()`） → insertした行を返す（この時点ではOP加算なし）
 
+### confirm_ouen_transaction の呼び出し
+
+```js
+const { data, error } = await supabase.rpc("confirm_ouen_transaction", {
+  p_transaction_id: tx.id,
+});
 ```
-1. auth.uid() が null でないことを確認（未認証なら例外）
-2. op = greatest(paid - price, 0) を計算
-3. transactions に1行insert（from_user_id = auth.uid()）
-4. op > 0 の場合、profiles.op を to_user_id の行に加算
-5. insertした取引行を返す
-```
 
-### レスポンス
+| パラメータ | 型 | 必須 | 説明 |
+|---|---|---|---|
+| p_transaction_id | uuid | ✅ | 確認する取引の`transactions.id` |
 
-成功時：作成された`transactions`の1行（`data`）
-失敗時：`error`に例外内容（未認証、外部キー制約違反など）
+**サーバー側の処理：** 未認証なら例外 → 対象取引を取得 → `to_user_id`が呼び出し本人でなければ例外 → `status`が`pending`でなければ例外（二重確認防止） → `status`を`received`に更新し`confirmed_at`を記録 → `op > 0`なら`profiles.op`を加算 → 更新後の取引行を返す
+
+### レスポンス（両関数共通）
+
+成功時：対象の`transactions`の1行（`data`）
+失敗時：`error`に例外内容（未認証、本人以外による確認、二重確認など）
 
 ---
 
@@ -140,7 +144,19 @@ const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(`$
 
 ---
 
-## 6. 旧設計との差分
+## 6. RPC：admin_list_users（管理者専用）
+
+**概要：** `profiles`と`auth.users`をJOINしてメールアドレス付きのユーザー一覧を返す。`profiles`テーブル自体は全ユーザーが閲覧できるため、そこにemailを含めると全員に漏れてしまう。そのため専用のRPCとして分離し、呼び出し元が`is_admin() = true`でなければ例外を返す。
+
+```js
+const { data, error } = await supabase.rpc("admin_list_users");
+```
+
+パラメータなし。戻り値は`profiles`の全カラムに`email`を加えたテーブル。管理画面のユーザータブでのみ使用する。
+
+---
+
+## 7. 旧設計との差分
 
 旧設計書は「Vercel Functions + Firebase Admin SDK」による独自API（`/api/identify`によるGemini Vision解析、`/api/approve-transaction`による承認処理）を想定していたが、いずれも実装されなかった。
 Supabase移行後は取引の承認フロー自体が廃止され（送信と同時に即時OP加算）、写真解析APIも未実装のまま。カスタムサーバーを持たずSupabaseの自動生成APIとRLS/RPCのみで完結する構成になっている。

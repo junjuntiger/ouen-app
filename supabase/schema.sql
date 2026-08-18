@@ -24,6 +24,8 @@ create table if not exists public.transactions (
   paid integer not null,
   op integer not null default 0,
   message text,
+  status text not null default 'pending' check (status in ('pending', 'received')),
+  confirmed_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -38,9 +40,9 @@ language sql stable security definer set search_path = public as $$
   select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
 $$;
 
--- Atomically create an ouen transaction and credit OP to the recipient.
--- Runs as SECURITY DEFINER so it can update another user's profile row,
--- something a plain client-side RLS-guarded UPDATE cannot do.
+-- Create an ouen transaction as 'pending'. OP is NOT credited yet — the
+-- recipient must confirm receipt via confirm_ouen_transaction() first,
+-- so a payer's self-reported "paid" amount alone can never inflate OP.
 create or replace function public.create_ouen_transaction(
   p_to_user_id uuid,
   p_menu_name text,
@@ -59,19 +61,56 @@ begin
     raise exception 'not authenticated';
   end if;
 
-  insert into public.transactions (from_user_id, to_user_id, menu_name, items, price, paid, op, message)
-  values (auth.uid(), p_to_user_id, p_menu_name, p_items, p_price, p_paid, v_op, p_message)
+  insert into public.transactions
+    (from_user_id, to_user_id, menu_name, items, price, paid, op, message, status)
+  values
+    (auth.uid(), p_to_user_id, p_menu_name, p_items, p_price, p_paid, v_op, p_message, 'pending')
   returning * into v_tx;
-
-  if v_op > 0 then
-    update public.profiles set op = op + v_op where id = p_to_user_id;
-  end if;
 
   return v_tx;
 end;
 $$;
 
 grant execute on function public.create_ouen_transaction(uuid, text, jsonb, integer, integer, text) to authenticated;
+
+-- Only the recipient may confirm their own pending transaction. Confirming
+-- credits OP exactly once, guarded by the pending -> received status flip.
+create or replace function public.confirm_ouen_transaction(p_transaction_id uuid)
+returns public.transactions
+language plpgsql security definer set search_path = public as $$
+declare
+  v_tx public.transactions;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select * into v_tx from public.transactions where id = p_transaction_id;
+
+  if v_tx is null then
+    raise exception 'transaction not found';
+  end if;
+  if v_tx.to_user_id != auth.uid() then
+    raise exception 'not authorized';
+  end if;
+  if v_tx.status != 'pending' then
+    raise exception 'transaction is not pending';
+  end if;
+
+  update public.transactions
+    set status = 'received', confirmed_at = now()
+    where id = p_transaction_id
+    returning * into v_tx;
+
+  if v_tx.op > 0 then
+    update public.profiles set op = op + v_tx.op where id = v_tx.to_user_id;
+  end if;
+
+  return v_tx;
+end;
+$$;
+
+grant execute on function public.confirm_ouen_transaction(uuid) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.transactions enable row level security;
@@ -124,7 +163,7 @@ begin
 
   return query
   select p.id, p.name, p.job, p.area, p.message, p.op, p.menus,
-         p.avatar_url, p.is_admin, p.created_at, u.email
+         p.avatar_url, p.is_admin, p.created_at, u.email::text
   from public.profiles p
   join auth.users u on u.id = p.id
   order by p.created_at;

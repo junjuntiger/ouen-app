@@ -113,11 +113,12 @@ export default function OuenPage() {
         <div style={styles.doneScreen}>
           <div style={styles.doneIcon}>🎉</div>
           <h2 style={styles.doneTitle}>おーえん完了！</h2>
-          <p style={styles.doneDesc}>{selectedMember?.name}さんへのおーえんが記録されました</p>
+          <p style={styles.doneDesc}>{selectedMember?.name}さんへのおーえんを送りました</p>
           <div style={styles.opResult}>
-            <span style={styles.opResultLabel}>獲得OP</span>
+            <span style={styles.opResultLabel}>確認待ちのOP</span>
             <span style={styles.opResultValue}>+{op.toLocaleString()} OP</span>
           </div>
+          <p style={styles.doneNote}>{selectedMember?.name}さんが受け取りを確認すると加算されます</p>
           <button onClick={reset} style={styles.doneBtn}>
             続けておーえんする
           </button>
@@ -832,11 +833,16 @@ const styles = {
     background: "var(--green-pale)",
     borderRadius: 16,
     padding: "20px 40px",
-    marginBottom: 32,
+    marginBottom: 12,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 4,
+  },
+  doneNote: {
+    fontSize: 13,
+    color: "var(--text-sub)",
+    marginBottom: 24,
   },
   opResultLabel: {
     fontSize: 13,

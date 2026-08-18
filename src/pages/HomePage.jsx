@@ -82,7 +82,11 @@ export default function HomePage() {
                   <span style={styles.txMenu}>{tx.menu_name}</span>
                   <div style={styles.txRight}>
                     <span style={styles.txPaid}>¥{tx.paid?.toLocaleString()}</span>
-                    <span style={styles.txOP}>+{tx.op?.toLocaleString()} OP</span>
+                    {tx.status === "pending" ? (
+                      <span style={styles.txPending}>確認待ち</span>
+                    ) : (
+                      <span style={styles.txOP}>+{tx.op?.toLocaleString()} OP</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -243,5 +247,13 @@ const styles = {
     fontSize: 13,
     color: "var(--green-light)",
     fontWeight: "bold",
+  },
+  txPending: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#E65100",
+    background: "#FFF3E0",
+    borderRadius: 6,
+    padding: "2px 8px",
   },
 };

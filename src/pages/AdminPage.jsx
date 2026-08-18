@@ -208,6 +208,7 @@ export default function AdminPage() {
                     <th style={styles.th}>メニュー</th>
                     <th style={styles.th}>金額</th>
                     <th style={styles.th}>OP</th>
+                    <th style={styles.th}>状態</th>
                     <th style={styles.th}>日時</th>
                     <th style={styles.th}></th>
                   </tr>
@@ -220,6 +221,7 @@ export default function AdminPage() {
                       <td style={styles.td}>{tx.menu_name}</td>
                       <td style={{ ...styles.td, textAlign: "right" }}>¥{(tx.paid || 0).toLocaleString()}</td>
                       <td style={{ ...styles.td, textAlign: "right" }}>{(tx.op || 0).toLocaleString()}</td>
+                      <td style={styles.td}>{tx.status === "pending" ? "確認待ち" : "受取済"}</td>
                       <td style={styles.td}>{formatDate(tx.created_at)}</td>
                       <td style={styles.td}>
                         <button
