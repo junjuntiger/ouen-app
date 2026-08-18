@@ -70,6 +70,25 @@ export default function AdminPage() {
     setEditingOpId(null);
   };
 
+  const toggleAdmin = async (u) => {
+    const makeAdmin = !u.is_admin;
+    const selfWarning = u.id === userProfile?.id
+      ? "自分自身の管理者権限を外そうとしています。この操作を行うと自分は管理画面にアクセスできなくなります。\n\n"
+      : "";
+    const message = makeAdmin
+      ? `${u.name}さんを管理者にします。よろしいですか？`
+      : `${selfWarning}${u.name}さんの管理者権限を外します。よろしいですか？`;
+    if (!window.confirm(message)) return;
+
+    const { error } = await supabase.from("profiles").update({ is_admin: makeAdmin }).eq("id", u.id);
+    if (error) {
+      console.error(error);
+      window.alert("更新に失敗しました");
+      return;
+    }
+    setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, is_admin: makeAdmin } : x));
+  };
+
   const formatDate = (ts) => {
     if (!ts) return "-";
     const d = new Date(ts);
@@ -157,6 +176,7 @@ export default function AdminPage() {
                     <th style={styles.th}>地域</th>
                     <th style={styles.th}>OP</th>
                     <th style={styles.th}>登録日</th>
+                    <th style={styles.th}>管理者</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,6 +208,14 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td style={styles.td}>{formatDate(u.created_at)}</td>
+                      <td style={styles.td}>
+                        <button
+                          onClick={() => toggleAdmin(u)}
+                          style={{ ...styles.adminToggleBtn, ...(u.is_admin ? styles.adminToggleOn : {}) }}
+                        >
+                          {u.is_admin ? "✓ 管理者" : "管理者にする"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -418,5 +446,18 @@ const styles = {
     borderRadius: 6,
     fontSize: 12,
     fontWeight: "bold",
+  },
+  adminToggleBtn: {
+    padding: "4px 10px",
+    background: "#f5f5f5",
+    color: "#757575",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+  },
+  adminToggleOn: {
+    background: "#E8F5E9",
+    color: "#2E7D32",
   },
 };
