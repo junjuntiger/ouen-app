@@ -56,7 +56,7 @@ supabase.auth.onAuthStateChange((event, session) => { ... });
 | 自分のプロフィール作成 | `supabase.from("profiles").insert({ id, name, ... })` | 初回プロフィール登録（SCR-02） |
 | 自分のプロフィール取得 | `supabase.from("profiles").select("*").eq("id", uid).maybeSingle()` | ログイン時のプロフィール判定 |
 | 全メンバー取得 | `supabase.from("profiles").select("*")` | メンバー一覧・おーえん相手選択 |
-| OPランキング取得 | `supabase.from("profiles").select("*").order("op", {ascending:false})` | メンバー一覧画面 |
+| メンバー一覧取得（OP降順） | `supabase.from("profiles").select("*").order("op", {ascending:false})` | メンバー一覧画面 |
 | 自分のプロフィール更新 | `supabase.from("profiles").update({...}).eq("id", uid)` | プロフィール編集・写真更新 |
 | 管理者によるOP修正 | `supabase.from("profiles").update({ op: newOp }).eq("id", userId)` | 管理画面（`is_admin`のみRLSで許可） |
 
