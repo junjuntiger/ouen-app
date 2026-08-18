@@ -274,9 +274,11 @@ export default function MyPage() {
                   style={{ ...styles.input, flex: 2, marginBottom: 0 }}
                 />
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={m.price || ""}
-                  onChange={(e) => updateMenu(i, "price", e.target.value)}
+                  onChange={(e) => updateMenu(i, "price", e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="価格"
                   style={{ ...styles.input, flex: 1, marginBottom: 0, textAlign: "right" }}
                 />

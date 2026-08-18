@@ -120,9 +120,11 @@ export default function ProfileSetupPage() {
               />
               <div style={styles.priceWrapper}>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={menu.price || ""}
-                  onChange={(e) => updateMenu(i, "price", e.target.value)}
+                  onChange={(e) => updateMenu(i, "price", e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="0"
                   style={{ ...styles.input, marginBottom: 0, textAlign: "right" }}
                 />

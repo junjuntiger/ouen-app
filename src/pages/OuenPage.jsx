@@ -205,12 +205,13 @@ export default function OuenPage() {
                         <div style={styles.rowPaidWrap}>
                           <span style={styles.yen}>¥</span>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={cartItem?.paid ?? ""}
-                            onChange={(e) => setItemPaid(menu.name, e.target.value)}
+                            onChange={(e) => setItemPaid(menu.name, e.target.value.replace(/[^0-9]/g, ""))}
                             placeholder={menu.price * qty}
                             style={styles.rowPaidInput}
-                            min={menu.price * qty}
                           />
                         </div>
                       </div>
@@ -235,12 +236,13 @@ export default function OuenPage() {
                 <div style={styles.customMenuPriceWrap}>
                   <span style={styles.yen}>¥</span>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={customMenuPrice}
-                    onChange={(e) => setCustomMenuPrice(e.target.value)}
+                    onChange={(e) => setCustomMenuPrice(e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="0"
                     style={styles.customMenuPriceInput}
-                    min={0}
                   />
                 </div>
                 <button

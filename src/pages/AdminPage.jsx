@@ -139,9 +139,11 @@ export default function AdminPage() {
                         {editingOpId === u.id ? (
                           <div style={styles.opEditRow}>
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={editingOpValue}
-                              onChange={(e) => setEditingOpValue(e.target.value)}
+                              onChange={(e) => setEditingOpValue(e.target.value.replace(/[^0-9]/g, ""))}
                               style={styles.opInput}
                               autoFocus
                             />
