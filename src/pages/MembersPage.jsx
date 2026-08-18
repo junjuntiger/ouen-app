@@ -38,8 +38,6 @@ export default function MembersPage() {
       m.message?.includes(search)
   );
 
-  const topThree = filtered.slice(0, 3);
-
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
@@ -56,33 +54,6 @@ export default function MembersPage() {
         />
       </div>
 
-      {!search && members.length > 0 && (
-        <div style={styles.rankingSection}>
-          <h3 style={styles.rankingTitle}>🏆 OPランキング</h3>
-          <div style={styles.rankingRow}>
-            {topThree.map((m, i) => (
-              <div key={m.id} style={styles.rankCard}>
-                <div style={{ ...styles.rankBadge, color: ["#2E7D32", "#8D6E38", "#C2185B"][i] }}>
-                  {["松", "竹", "梅"][i]}
-                </div>
-                <Avatar
-                  url={m.avatar_url}
-                  name={m.name}
-                  size={40}
-                  style={{
-                    background: ["#E8F5E9", "#FFF8E1", "#FCE4EC"][i],
-                    color: ["#2E7D32", "#F9A825", "#C2185B"][i],
-                    margin: "0 auto 6px",
-                  }}
-                />
-                <p style={styles.rankName}>{m.name}</p>
-                <p style={styles.rankOP}>{(m.op ?? 0).toLocaleString()} OP</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div style={styles.body}>
         {loading ? (
           <div style={styles.loading}>読み込み中...</div>
@@ -92,12 +63,9 @@ export default function MembersPage() {
           </div>
         ) : (
           <div style={styles.list}>
-            {filtered.map((m, i) => (
+            {filtered.map((m) => (
               <div key={m.id} style={styles.card}>
                 <div style={styles.cardLeft}>
-                  <div style={styles.rank}>
-                    {!search ? `#${i + 1}` : ""}
-                  </div>
                   <Avatar url={m.avatar_url} name={m.name} size={40} style={styles.avatar} />
                   <div style={styles.info}>
                     <div style={styles.nameRow}>
@@ -165,57 +133,6 @@ const styles = {
     fontSize: 15,
     background: "#fafafa",
   },
-  rankingSection: {
-    background: "#fff",
-    padding: "16px",
-    marginBottom: 8,
-    borderBottom: "1px solid #e0e0e0",
-  },
-  rankingTitle: {
-    fontSize: 15,
-    fontWeight: "bold",
-    marginBottom: 12,
-    color: "var(--text-main)",
-  },
-  rankingRow: {
-    display: "flex",
-    gap: 8,
-  },
-  rankCard: {
-    flex: 1,
-    background: "var(--bg)",
-    borderRadius: 12,
-    padding: "12px 8px",
-    textAlign: "center",
-    border: "1px solid #e0e0e0",
-  },
-  rankBadge: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 6,
-  },
-  rankAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: "50%",
-    margin: "0 auto 6px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankName: {
-    fontSize: 12,
-    fontWeight: "bold",
-    marginBottom: 2,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  rankOP: {
-    fontSize: 12,
-    color: "var(--green-primary)",
-    fontWeight: "bold",
-  },
   body: {
     padding: "12px 14px",
   },
@@ -249,13 +166,6 @@ const styles = {
     gap: 10,
     flex: 1,
     minWidth: 0,
-  },
-  rank: {
-    fontSize: 13,
-    color: "var(--text-sub)",
-    width: 24,
-    flexShrink: 0,
-    fontWeight: "bold",
   },
   avatar: {
     width: 40,
