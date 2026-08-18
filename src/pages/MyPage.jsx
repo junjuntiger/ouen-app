@@ -300,7 +300,7 @@ export default function MyPage() {
               {saving ? "保存中..." : "保存する"}
             </button>
 
-            {userProfile?.isAdmin && (
+            {userProfile?.is_admin && (
               <button
                 onClick={() => navigate("/admin")}
                 style={styles.adminBtn}

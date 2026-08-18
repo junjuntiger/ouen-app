@@ -14,7 +14,7 @@ export default function AdminPage() {
   const [editingOpValue, setEditingOpValue] = useState("");
 
   useEffect(() => {
-    if (!userProfile?.isAdmin) {
+    if (!userProfile?.is_admin) {
       navigate("/");
       return;
     }
@@ -71,7 +71,7 @@ export default function AdminPage() {
   const totalPaid = transactions.reduce((s, t) => s + (t.paid || 0), 0);
   const totalOP = transactions.reduce((s, t) => s + (t.op || 0), 0);
 
-  if (!userProfile?.isAdmin) return null;
+  if (!userProfile?.is_admin) return null;
 
   return (
     <div style={styles.container}>
