@@ -25,7 +25,7 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const [usersRes, txRes] = await Promise.all([
-        supabase.from("profiles").select("*"),
+        supabase.rpc("admin_list_users"),
         supabase
           .from("transactions")
           .select("*, from_user:profiles!transactions_from_user_id_fkey(name), to_user:profiles!transactions_to_user_id_fkey(name)")
@@ -68,6 +68,22 @@ export default function AdminPage() {
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   };
 
+  const downloadUsersCsv = () => {
+    const escapeCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["名前", "メールアドレス", "職業", "地域", "OP", "登録日"];
+    const rows = users.map((u) => [
+      u.name, u.email, u.job, u.area, u.op ?? 0, formatDate(u.created_at),
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escapeCell).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `users_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const totalPaid = transactions.reduce((s, t) => s + (t.paid || 0), 0);
   const totalOP = transactions.reduce((s, t) => s + (t.op || 0), 0);
 
@@ -76,7 +92,7 @@ export default function AdminPage() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <button onClick={() => navigate("/")} style={styles.backBtn}>🏠</button>
+        <button onClick={() => navigate("/mypage")} style={styles.backBtn}>← 戻る</button>
         <h1 style={styles.title}>管理画面</h1>
       </div>
 
@@ -118,11 +134,16 @@ export default function AdminPage() {
           )}
 
           {tab === "users" && (
-            <div style={styles.tableWrap}>
+            <div>
+              <div style={styles.tableActions}>
+                <button onClick={downloadUsersCsv} style={styles.csvBtn}>CSVダウンロード</button>
+              </div>
+              <div style={styles.tableWrap}>
               <table style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>名前</th>
+                    <th style={styles.th}>メールアドレス</th>
                     <th style={styles.th}>職業</th>
                     <th style={styles.th}>地域</th>
                     <th style={styles.th}>OP</th>
@@ -133,6 +154,7 @@ export default function AdminPage() {
                   {users.map((u) => (
                     <tr key={u.id} style={styles.tr}>
                       <td style={styles.td}>{u.name}</td>
+                      <td style={styles.td}>{u.email || "-"}</td>
                       <td style={styles.td}>{u.job || "-"}</td>
                       <td style={styles.td}>{u.area || "-"}</td>
                       <td style={{ ...styles.td, textAlign: "right" }}>
@@ -161,6 +183,7 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -225,8 +248,10 @@ const styles = {
   },
   backBtn: {
     background: "transparent",
-    fontSize: 28,
-    padding: "4px",
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "bold",
+    padding: "4px 4px 4px 0",
     lineHeight: 1,
   },
   title: {
@@ -286,6 +311,19 @@ const styles = {
     fontSize: 14,
     fontWeight: "normal",
     color: "#757575",
+  },
+  tableActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    marginBottom: 10,
+  },
+  csvBtn: {
+    padding: "8px 14px",
+    background: "#2E7D32",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+    borderRadius: 8,
   },
   tableWrap: {
     background: "#fff",

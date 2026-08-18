@@ -107,6 +107,32 @@ on conflict (id) do nothing;
 create policy "avatar_public_read" on storage.objects
   for select using (bucket_id = 'avatars');
 
+-- Admin-only: list users together with their email address.
+-- profiles itself is readable by everyone, so email is deliberately kept
+-- out of that table and only exposed through this admin-gated function.
+create or replace function public.admin_list_users()
+returns table (
+  id uuid, name text, job text, area text, message text,
+  op integer, menus jsonb, avatar_url text, is_admin boolean,
+  created_at timestamptz, email text
+)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+  select p.id, p.name, p.job, p.area, p.message, p.op, p.menus,
+         p.avatar_url, p.is_admin, p.created_at, u.email
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  order by p.created_at;
+end;
+$$;
+
+grant execute on function public.admin_list_users() to authenticated;
+
 create policy "avatar_owner_insert" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
