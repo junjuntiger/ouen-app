@@ -12,6 +12,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [editingOpId, setEditingOpId] = useState(null);
   const [editingOpValue, setEditingOpValue] = useState("");
+  const [usersError, setUsersError] = useState("");
+  const [txError, setTxError] = useState("");
 
   useEffect(() => {
     if (!userProfile?.is_admin) {
@@ -23,30 +25,36 @@ export default function AdminPage() {
 
   const fetchAll = async () => {
     setLoading(true);
-    try {
-      const [usersRes, txRes] = await Promise.all([
-        supabase.rpc("admin_list_users"),
-        supabase
-          .from("transactions")
-          .select("*, from_user:profiles!transactions_from_user_id_fkey(name), to_user:profiles!transactions_to_user_id_fkey(name)")
-          .order("created_at", { ascending: false }),
-      ]);
-      if (usersRes.error) throw usersRes.error;
-      if (txRes.error) throw txRes.error;
+    setUsersError("");
+    setTxError("");
 
+    const usersRes = await supabase.rpc("admin_list_users");
+    if (usersRes.error) {
+      console.error(usersRes.error);
+      setUsersError(usersRes.error.message);
+      setUsers([]);
+    } else {
       setUsers(usersRes.data ?? []);
+    }
 
+    const txRes = await supabase
+      .from("transactions")
+      .select("*, from_user:profiles!transactions_from_user_id_fkey(name), to_user:profiles!transactions_to_user_id_fkey(name)")
+      .order("created_at", { ascending: false });
+    if (txRes.error) {
+      console.error(txRes.error);
+      setTxError(txRes.error.message);
+      setTransactions([]);
+    } else {
       const txData = (txRes.data ?? []).map((tx) => ({
         ...tx,
         fromName: tx.from_user?.name ?? "不明",
         toName: tx.to_user?.name ?? "不明",
       }));
       setTransactions(txData);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
 
   const startEditOp = (u) => {
@@ -135,6 +143,7 @@ export default function AdminPage() {
 
           {tab === "users" && (
             <div>
+              {usersError && <p style={styles.errorMsg}>ユーザー取得に失敗しました: {usersError}</p>}
               <div style={styles.tableActions}>
                 <button onClick={downloadUsersCsv} style={styles.csvBtn}>CSVダウンロード</button>
               </div>
@@ -188,7 +197,9 @@ export default function AdminPage() {
           )}
 
           {tab === "transactions" && (
-            <div style={styles.tableWrap}>
+            <div>
+              {txError && <p style={styles.errorMsg}>取引履歴の取得に失敗しました: {txError}</p>}
+              <div style={styles.tableWrap}>
               <table style={styles.table}>
                 <thead>
                   <tr>
@@ -226,6 +237,7 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
@@ -281,6 +293,14 @@ const styles = {
     textAlign: "center",
     padding: 60,
     color: "#757575",
+  },
+  errorMsg: {
+    background: "#ffebee",
+    color: "#c62828",
+    padding: "10px 14px",
+    borderRadius: 8,
+    fontSize: 13,
+    marginBottom: 12,
   },
   content: {
     padding: 16,
