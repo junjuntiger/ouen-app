@@ -694,7 +694,8 @@ const styles = {
     marginBottom: 10,
   },
   customMenuNameInput: {
-    flex: 2,
+    flex: 1,
+    minWidth: 0,
     padding: "10px 12px",
     border: "2px solid #e0e0e0",
     borderRadius: 10,
@@ -703,6 +704,7 @@ const styles = {
   },
   customMenuPriceWrap: {
     flex: 1,
+    minWidth: 0,
     display: "flex",
     alignItems: "center",
     border: "2px solid #e0e0e0",
@@ -711,12 +713,13 @@ const styles = {
   },
   customMenuPriceInput: {
     flex: 1,
+    minWidth: 0,
+    width: 0,
     padding: "10px 8px",
     fontSize: 14,
     border: "none",
     background: "transparent",
     textAlign: "right",
-    minWidth: 0,
   },
   customAddBtn: {
     padding: "10px 14px",
